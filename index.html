@@ -1,0 +1,3417 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Rhythm Train. — 4/4拍節奏列車 3D點名系統</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Playfair Display, JetBrains Mono, Noto Sans TC -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@500;700&family=Noto+Sans+TC:wght@400;500;700;900&family=Playfair+Display:ital,wght@0,600;0,700;1,400;1,600&display=swap" rel="stylesheet">
+  <!-- Three.js & OrbitControls -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+  <style>
+    :root {
+      --bg-center: #faf7f2;
+      --bg-edge: #e4dfd5;
+      --ink: #18181b;
+      --muted: #57534e;
+    }
+
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: radial-gradient(circle at 44% 40%, var(--bg-center) 0%, #efeae0 58%, var(--bg-edge) 100%);
+      font-family: 'Noto Sans TC', -apple-system, BlinkMacSystemFont, sans-serif;
+      color: var(--ink);
+      touch-action: none;
+    }
+
+    .serif-title {
+      font-family: 'Playfair Display', 'Instrument Serif', Georgia, serif;
+    }
+
+    .mono-label {
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    #canvas-container {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+      touch-action: none;
+    }
+
+    /* Prevent hidden HUD & Banner from intercepting pointer events */
+    #playback-minimal-hud.is-hidden,
+    #playback-minimal-hud.is-hidden *,
+    #center-banner.is-hidden,
+    #center-banner.is-hidden * {
+      pointer-events: none !important;
+    }
+
+    /* Editorial Glass Card inspired by Reference Image 2 */
+    .control-card {
+      background: rgba(255, 254, 251, 0.92);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.95);
+      box-shadow:
+        0 24px 48px -12px rgba(28, 25, 23, 0.14),
+        0 4px 14px rgba(28, 25, 23, 0.06),
+        inset 0 1px 0 rgba(255, 255, 255, 1);
+    }
+
+    .cam-btn-active {
+      background-color: #18181b !important;
+      color: #ffffff !important;
+      border-color: #18181b !important;
+    }
+
+    /* Soft ambient flavor glow inside control card */
+    .flavor-aura {
+      position: absolute;
+      top: 10px;
+      right: 24px;
+      width: 120px;
+      height: 120px;
+      border-radius: 9999px;
+      filter: blur(36px);
+      opacity: 0.30;
+      pointer-events: none;
+      transition: background-color 0.35s ease;
+    }
+
+    /* High-Contrast Glossy 3D Gummy Flavor Orbs */
+    .flavor-orb {
+      position: relative;
+      width: 38px;
+      height: 38px;
+      border-radius: 9999px;
+      cursor: pointer;
+      transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
+      box-shadow:
+        0 6px 12px -2px rgba(0, 0, 0, 0.28),
+        inset 0 -4px 6px rgba(0, 0, 0, 0.32),
+        inset 0 3px 5px rgba(255, 255, 255, 0.8);
+    }
+    .flavor-orb::after {
+      content: '';
+      position: absolute;
+      top: 5px;
+      left: 8px;
+      width: 12px;
+      height: 6px;
+      border-radius: 9999px;
+      background: rgba(255, 255, 255, 0.88);
+      transform: rotate(-22deg);
+    }
+    .flavor-orb:hover {
+      transform: scale(1.12);
+    }
+    .flavor-orb.active {
+      transform: scale(1.15);
+      outline: 3px solid #18181b;
+      outline-offset: 3px;
+    }
+
+    /* Custom Minimalist Slider */
+    input[type="range"].editorial-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 5px;
+      background: #dcd8ce;
+      border-radius: 999px;
+      outline: none;
+    }
+    input[type="range"].editorial-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #18181b;
+      border: 2.5px solid #ffffff;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+      cursor: pointer;
+      transition: transform 0.15s ease;
+    }
+    input[type="range"].editorial-slider::-webkit-slider-thumb:hover {
+      transform: scale(1.2);
+    }
+
+    /* Stat Sub-box */
+    .stat-box {
+      background: rgba(244, 241, 234, 0.92);
+      border: 1px solid rgba(214, 211, 203, 0.9);
+      border-radius: 14px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Floating 3D HTML Labels */
+    .world-label {
+      position: absolute;
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+      transition: opacity 0.2s ease;
+      z-index: 5;
+    }
+
+    /* Roll Call Pop Badge */
+    @keyframes floatPop {
+      0% { transform: translate(-50%, 0) scale(0.5); opacity: 0; }
+      20% { transform: translate(-50%, -16px) scale(1.15); opacity: 1; }
+      80% { transform: translate(-50%, -32px) scale(1); opacity: 1; }
+      100% { transform: translate(-50%, -44px) scale(0.85); opacity: 0; }
+    }
+    .rollcall-pop {
+      position: absolute;
+      pointer-events: none;
+      z-index: 35;
+      animation: floatPop 0.78s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+
+    /* Score Beat Cell with Subtle Musical Staff Lines */
+    .beat-cell {
+      position: relative;
+      overflow: hidden;
+      background-image: repeating-linear-gradient(
+        to bottom,
+        transparent 0px,
+        transparent 9px,
+        rgba(120, 113, 108, 0.07) 9px,
+        rgba(120, 113, 108, 0.07) 10px
+      );
+      transition: all 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .beat-cell.downbeat-cell {
+      box-shadow: inset 0 2px 0 rgba(24, 24, 27, 0.14);
+    }
+    .beat-cell.playing {
+      transform: translateY(-4px) scale(1.06);
+      background-color: #18181b !important;
+      color: #ffffff !important;
+      box-shadow: 0 10px 22px -4px rgba(24, 24, 27, 0.4);
+    }
+    .beat-cell.playing .beat-subtext {
+      color: #fde047 !important;
+    }
+    .pitch-glyph {
+      transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    /* Pulse animation for Depart button when ready */
+    @keyframes pulseAmber {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.6); }
+      50% { box-shadow: 0 0 0 10px rgba(245, 158, 11, 0); }
+    }
+    .depart-ready {
+      animation: pulseAmber 1.6s infinite;
+    }
+
+    /* Auto-hide UI panels smoothly during Roll Call playback or Clean 3D Mode */
+    .ui-panel {
+      transition: opacity 0.38s cubic-bezier(0.22, 1, 0.36, 1), transform 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    body.is-playing-rollcall .ui-panel,
+    body.clean-3d-mode .collapsible-ui {
+      opacity: 0 !important;
+      pointer-events: none !important;
+      transform: translateY(10px) scale(0.96);
+    }
+    body.is-playing-rollcall aside.ui-panel,
+    body.clean-3d-mode aside.collapsible-ui {
+      transform: translate(20px, -50%) scale(0.96);
+    }
+    @media (max-width: 767px) {
+      body.is-playing-rollcall aside.ui-panel,
+      body.clean-3d-mode aside.collapsible-ui {
+        transform: translateY(-16px) scale(0.96);
+      }
+    }
+
+    /* Minimal Floating HUD shown ONLY during Roll Call playback */
+    #playback-minimal-hud {
+      transition: opacity 0.35s ease, transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 3D Viewport Container -->
+  <div id="canvas-container"></div>
+
+  <!-- Dynamic 3D World Overlay Labels -->
+  <div id="world-labels" class="fixed inset-0 pointer-events-none z-10 overflow-hidden"></div>
+
+  <!-- MINIMAL FLOATING HUD DURING ROLL-CALL PLAYBACK (Appears when toolbars hide) -->
+  <div id="playback-minimal-hud" class="is-hidden fixed top-4 left-1/2 -translate-x-1/2 z-50 pointer-events-none opacity-0 -translate-y-4">
+    <div class="control-card px-4 py-1.5 rounded-full flex items-center gap-3.5 shadow-2xl border-2 border-stone-900/15">
+      <div class="flex items-center gap-2">
+        <span class="w-2.5 h-2.5 rounded-full bg-rose-600 animate-ping"></span>
+        <span id="hud-carriage-label" class="mono-label text-xs font-black text-stone-800">第一節車廂</span>
+        <span id="hud-beat-badge" class="serif-title italic text-lg font-bold text-rose-600 px-2 py-0.5 rounded-lg bg-rose-50 border border-rose-200">1/4</span>
+      </div>
+      <div class="w-24 sm:w-28 h-2 bg-stone-200 rounded-full overflow-hidden">
+        <div id="hud-progress-bar" class="h-full bg-rose-600 transition-all duration-100" style="width: 0%;"></div>
+      </div>
+      <button id="btn-hud-stop" type="button" class="px-3 py-1 rounded-full bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-bold text-xs shadow-md transition cursor-pointer flex items-center gap-1">
+        <span>⏹</span> 停止點名
+      </button>
+    </div>
+  </div>
+
+  <!-- CELEBRATORY ROLL-CALL COMPLETE / TRAIN DEPARTED BANNER (Centered in viewport) -->
+  <div id="center-banner" class="is-hidden fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 pointer-events-none opacity-0 scale-95 transition-all duration-300 w-max max-w-[92vw]">
+    <div class="control-card px-5 py-3 rounded-full flex items-center gap-3.5 shadow-2xl border-2 border-amber-400">
+      <span id="banner-icon" class="text-2xl">🎉</span>
+      <div>
+        <div id="banner-title" class="text-xs sm:text-sm font-black text-stone-900">點名完成！全員準備就緒！</div>
+        <div id="banner-desc" class="text-[10px] sm:text-xs text-stone-600">點擊右側或下方按鈕讓列車鳴笛出發！</div>
+      </div>
+      <button id="banner-action-btn" type="button" class="ml-1 px-4 py-2 rounded-full bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold text-xs shadow-md transition cursor-pointer whitespace-nowrap">
+        🚂 列車出發！
+      </button>
+    </div>
+  </div>
+
+  <!-- COMPACT TOP-LEFT BAR -->
+  <header class="ui-panel fixed top-3 left-4 z-40 flex flex-wrap items-center gap-2.5 pointer-events-none">
+    <div class="control-card px-3.5 py-1.5 rounded-full flex items-center gap-2.5 shadow-sm pointer-events-auto">
+      <span id="status-dot" class="w-2 h-2 rounded-full bg-red-600 animate-pulse shadow-[0_0_8px_#dc2626]"></span>
+      <h1 class="serif-title text-lg sm:text-xl leading-none tracking-tight text-stone-900">
+        <span class="italic font-normal">Rhythm</span><span class="text-stone-400 font-light mx-0.5">/</span><span class="font-bold">Train.</span>
+      </h1>
+      <span id="status-label" class="hidden sm:inline mono-label text-[9px] tracking-[0.12em] uppercase text-stone-500 font-bold border-l border-stone-300 pl-2">
+        4/4 ROLL CALL
+      </span>
+    </div>
+
+    <!-- Camera & Clean UI Quick Buttons -->
+    <div class="flex items-center gap-1.5 pointer-events-auto">
+      <button id="btn-reset-cam" type="button" class="cam-btn-active px-2.5 py-1.5 rounded-full bg-white/90 hover:bg-white text-[11px] font-bold text-stone-800 shadow-sm border border-stone-300/80 transition flex items-center gap-1 cursor-pointer active:scale-95">
+        <span>🎥</span> 標準視角
+      </button>
+      <button id="btn-top-cam" type="button" class="px-2.5 py-1.5 rounded-full bg-white/90 hover:bg-white text-[11px] font-bold text-stone-800 shadow-sm border border-stone-300/80 transition flex items-center gap-1 cursor-pointer active:scale-95">
+        <span>🔍</span> 俯視座位
+      </button>
+      <button id="btn-toggle-ui" type="button" class="px-2.5 py-1.5 rounded-full bg-stone-900/90 hover:bg-stone-900 text-[11px] font-bold text-white shadow-sm transition flex items-center gap-1 cursor-pointer active:scale-95" title="隱藏或展開周邊面板，讓3D畫面更大">
+        <span>👁️</span> <span id="toggle-ui-text">收合面板</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- SLIM RIGHT FLOATING CONTROL CARD -->
+  <aside class="ui-panel collapsible-ui fixed top-14 right-3 md:top-1/2 md:-translate-y-1/2 md:right-4 z-30 w-[246px] sm:w-[262px] control-card rounded-[22px] p-3 sm:p-3.5">
+    <div id="flavor-aura" class="flavor-aura" style="background-color: #E60026; width: 90px; height: 90px;"></div>
+
+    <div class="relative z-10 space-y-2.5">
+      <!-- 0. TIME SIGNATURE SELECTOR (4/4 vs 3/4) -->
+      <div>
+        <div class="flex items-center justify-between mb-1">
+          <span class="mono-label text-[9px] tracking-[0.12em] uppercase text-stone-500 font-bold">TIME SIGNATURE · 拍號</span>
+          <span id="meter-badge" class="text-[10px] font-black text-rose-600">每節 4 排 (4拍)</span>
+        </div>
+        <div class="grid grid-cols-2 gap-1.5 bg-stone-200/80 p-1 rounded-xl">
+          <button id="btn-meter-44" type="button" class="py-1 px-2 rounded-lg bg-stone-900 text-white font-black text-[11px] shadow-sm transition cursor-pointer flex items-center justify-center gap-1">
+            <span class="serif-title italic text-xs">4/4</span>
+            <span>四四拍</span>
+          </button>
+          <button id="btn-meter-34" type="button" class="py-1 px-2 rounded-lg text-stone-700 hover:text-stone-900 font-black text-[11px] transition cursor-pointer flex items-center justify-center gap-1">
+            <span class="serif-title italic text-xs">3/4</span>
+            <span>三四拍</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 1. HIGH-CONTRAST FLAVOR / PITCH ORBS -->
+      <div>
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="mono-label text-[9px] tracking-[0.12em] uppercase text-stone-500 font-bold">FLAVOR · 音高色彩</span>
+          <span id="flavor-name" class="text-[11px] font-black text-stone-900">櫻桃紅 (Do · C5)</span>
+        </div>
+        <div class="flex items-center justify-between px-0.5" id="flavor-list">
+          <button data-flavor="0" type="button" class="flavor-orb active" style="width:32px;height:32px;background: radial-gradient(circle at 35% 30%, #ff3b5c, #b8001f);" title="櫻桃紅 - Do (C5)"></button>
+          <button data-flavor="1" type="button" class="flavor-orb" style="width:32px;height:32px;background: radial-gradient(circle at 35% 30%, #ff7b33, #cc4400);" title="柑橘橙 - Re (D5)"></button>
+          <button data-flavor="2" type="button" class="flavor-orb" style="width:32px;height:32px;background: radial-gradient(circle at 35% 30%, #ffd000, #c48600);" title="檸檬黃 - Mi (E5)"></button>
+          <button data-flavor="3" type="button" class="flavor-orb" style="width:32px;height:32px;background: radial-gradient(circle at 35% 30%, #10e056, #007a29);" title="青蘋綠 - Sol (G5)"></button>
+          <button data-flavor="4" type="button" class="flavor-orb" style="width:32px;height:32px;background: radial-gradient(circle at 35% 30%, #b44ce0, #581275);" title="藍莓紫 - La (A5)"></button>
+        </div>
+      </div>
+
+      <!-- 2. PASSENGER TYPE SELECTOR (Adult ♩, Child ♪, Quadruplets ♬×4) -->
+      <div>
+        <div class="flex items-center justify-between mb-1">
+          <span class="mono-label text-[9px] tracking-[0.12em] uppercase text-stone-500 font-bold">PASSENGER · 點座位或拖曳</span>
+          <span id="stat-subtext" class="text-[9px] font-bold text-stone-500">大人0·小孩0·四胞胎0</span>
+        </div>
+        <div class="grid grid-cols-3 gap-1">
+          <button id="select-adult" type="button" class="group flex flex-col items-center p-1.5 rounded-xl border-2 border-stone-900 bg-stone-900 text-white transition text-center cursor-pointer">
+            <div class="w-6 h-6 rounded-lg bg-white/20 flex items-center justify-center text-sm font-black mb-0.5">♩</div>
+            <div class="text-[10px] font-black leading-tight">大人(1拍)</div>
+          </button>
+          <button id="select-child" type="button" class="group flex flex-col items-center p-1.5 rounded-xl border-2 border-stone-300 bg-white hover:bg-stone-50 text-stone-800 transition text-center cursor-pointer">
+            <div class="w-6 h-6 rounded-lg bg-stone-200 flex items-center justify-center text-sm font-black text-stone-900 mb-0.5">♪</div>
+            <div class="text-[10px] font-black leading-tight">小孩(半拍)</div>
+          </button>
+          <button id="select-sixteenth" type="button" class="group flex flex-col items-center p-1.5 rounded-xl border-2 border-stone-300 bg-white hover:bg-stone-50 text-stone-800 transition text-center cursor-pointer">
+            <div class="w-6 h-6 rounded-lg bg-stone-200 flex items-center justify-center text-stone-900 mb-0.5 px-0.5">
+              <svg viewBox="0 0 76 44" class="w-5 h-3.5" fill="currentColor" aria-hidden="true">
+                <rect x="12" y="5" width="57" height="4.8" rx="1.5" />
+                <rect x="12" y="13" width="57" height="4.8" rx="1.5" />
+                <rect x="12" y="6" width="3.4" height="27" />
+                <rect x="30" y="6" width="3.4" height="27" />
+                <rect x="48" y="6" width="3.4" height="27" />
+                <rect x="65.6" y="6" width="3.4" height="27" />
+                <ellipse cx="8.5" cy="33.5" rx="6.2" ry="4.6" transform="rotate(-18 8.5 33.5)" />
+                <ellipse cx="26.5" cy="33.5" rx="6.2" ry="4.6" transform="rotate(-18 26.5 33.5)" />
+                <ellipse cx="44.5" cy="33.5" rx="6.2" ry="4.6" transform="rotate(-18 44.5 33.5)" />
+                <ellipse cx="62.5" cy="33.5" rx="6.2" ry="4.6" transform="rotate(-18 62.5 33.5)" />
+              </svg>
+            </div>
+            <div class="text-[10px] font-black leading-tight">四胞胎</div>
+          </button>
+        </div>
+      </div>
+
+      <!-- 3. SIDE-BY-SIDE COMPACT WOBBLE & TEMPO SLIDERS -->
+      <div class="grid grid-cols-2 gap-2 pt-0.5">
+        <div class="bg-stone-100/80 px-2 py-1.5 rounded-xl border border-stone-200/80">
+          <div class="flex justify-between items-center mb-1">
+            <span class="mono-label text-[9px] uppercase text-stone-500 font-bold">Q彈度</span>
+            <span id="wobble-val" class="mono-label text-[10px] font-bold text-stone-900">85%</span>
+          </div>
+          <input id="slider-wobble" type="range" min="15" max="100" value="85" class="editorial-slider" />
+        </div>
+
+        <div class="bg-stone-100/80 px-2 py-1.5 rounded-xl border border-stone-200/80">
+          <div class="flex justify-between items-center mb-1">
+            <span class="mono-label text-[9px] uppercase text-stone-500 font-bold">速度</span>
+            <span id="tempo-val" class="mono-label text-[10px] font-bold text-stone-900">92</span>
+          </div>
+          <input id="slider-tempo" type="range" min="56" max="140" value="92" class="editorial-slider" />
+        </div>
+      </div>
+
+      <!-- Hidden compatibility nodes for JS updates -->
+      <div class="hidden">
+        <span id="stat-beat">4/4</span>
+        <div id="beat-progress-bar"></div>
+        <span id="stat-passengers">0</span>
+      </div>
+
+      <!-- 4. PRIMARY PLAY ROLL CALL + TRAIN DEPART BUTTONS -->
+      <div class="space-y-1.5 pt-0.5">
+        <button id="btn-play" type="button" class="w-full py-2.5 px-3.5 rounded-xl bg-[#18181b] hover:bg-stone-800 active:scale-[0.99] text-white font-bold text-xs flex items-center justify-between shadow-md shadow-stone-900/15 transition cursor-pointer">
+          <span class="flex items-center gap-1.5">
+            <span id="play-icon" class="w-4 h-4 rounded-full bg-white/20 flex items-center justify-center text-[10px]">▶</span>
+            <span id="play-text">1. 開始點名 (Play)</span>
+          </span>
+          <span id="play-meter-label" class="serif-title italic text-stone-300 text-sm">4/4</span>
+        </button>
+
+        <button id="btn-depart" type="button" class="w-full py-2 px-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 active:scale-[0.99] text-white font-bold text-xs flex items-center justify-between shadow-md shadow-amber-500/20 transition cursor-pointer">
+          <span class="flex items-center gap-1.5">
+            <span id="depart-icon" class="w-4 h-4 rounded-full bg-white/25 flex items-center justify-center text-[11px]">🚂</span>
+            <span id="depart-text">2. 列車出發 (Depart)</span>
+          </span>
+          <span class="mono-label text-[10px] bg-white/20 px-1.5 py-0.5 rounded-full">GO!</span>
+        </button>
+      </div>
+
+      <!-- 5. SECONDARY ACTION ROW -->
+      <div class="grid grid-cols-2 gap-1.5">
+        <button id="btn-random" type="button" class="py-1.5 px-2 rounded-lg bg-stone-200/90 hover:bg-stone-300/80 text-stone-800 text-[11px] font-bold transition flex items-center justify-center gap-1 cursor-pointer">
+          <span>🎲</span> 隨機示範
+        </button>
+        <button id="btn-clear" type="button" class="py-1.5 px-2 rounded-lg bg-stone-200/90 hover:bg-rose-100 hover:text-rose-700 text-stone-800 text-[11px] font-bold transition flex items-center justify-center gap-1 cursor-pointer">
+          <span>↺</span> 清空座位
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- SLEEK DOCKED BOTTOM LIVE RHYTHM SCORE BAR -->
+  <div id="score-dock-wrapper" class="ui-panel collapsible-ui fixed bottom-2.5 left-1/2 -translate-x-1/2 md:left-4 md:translate-x-0 md:right-[282px] z-20 w-[95vw] md:w-auto max-w-[820px] transition-all duration-300">
+    <div class="control-card rounded-[18px] px-3 py-2 border border-white/95 shadow-lg">
+      <div class="flex items-center justify-between gap-2 mb-1.5">
+        <div class="flex items-center gap-2">
+          <span id="score-title-label" class="mono-label text-[10px] sm:text-[11px] uppercase tracking-wider text-stone-800 font-black">4/4 點名譜</span>
+          <span class="px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 text-[10px] font-bold border border-sky-200">第一車廂</span>
+          <span class="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold border border-amber-200">第二車廂</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="hidden sm:inline text-[10px] font-semibold text-stone-500">點擊拍格可單獨試聽</span>
+          <button id="btn-resize-score" type="button" class="px-2 py-0.5 rounded-full bg-stone-200/80 hover:bg-stone-300 text-stone-800 text-[10px] font-bold transition cursor-pointer">
+            🔍 放大樂譜
+          </button>
+        </div>
+      </div>
+      <div id="score-grid" class="grid grid-cols-8 gap-1.5">
+        <!-- Populated dynamically by JS for 2 carriages × beatsPerBar -->
+      </div>
+    </div>
+  </div>
+
+  <!-- CREATOR SOCIAL TAGS AT BOTTOM RIGHT (Without @ symbols) -->
+  <div id="creator-social-tags" class="fixed bottom-[96px] md:bottom-2.5 right-3 md:right-4 z-30 flex items-center gap-1.5 pointer-events-auto">
+    <div class="control-card px-2.5 py-1.5 rounded-full flex items-center gap-2 shadow-md border border-stone-300/80">
+      <a href="https://www.threads.com/@lycbert" target="_blank" rel="noopener noreferrer"
+         class="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-stone-900 hover:bg-stone-700 text-white text-[11px] font-bold transition shadow-xs"
+         title="前往 Threads lycbert">
+        <svg viewBox="0 0 24 24" class="w-3.5 h-3.5 fill-current" aria-hidden="true">
+          <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10c2.25 0 4.33-.744 6.005-2.002a.75.75 0 1 0-.902-1.198A8.468 8.468 0 0 1 12 20.5 8.5 8.5 0 1 1 20.5 12c0 1.69-.56 2.75-1.5 2.75-.91 0-1.5-.74-1.5-1.88V8.25a.75.75 0 0 0-1.5 0v.63A4.23 4.23 0 0 0 12.25 7C9.63 7 7.5 9.24 7.5 12s2.13 5 4.75 5c1.61 0 3.03-.8 3.88-2.03.38 1.2 1.45 2.03 2.87 2.03 2.02 0 3-1.78 3-4.25C22 6.477 17.523 2 12 2Zm.25 13.5c-1.8 0-3.25-1.56-3.25-3.5s1.45-3.5 3.25-3.5S15.5 10.06 15.5 12s-1.45 3.5-3.25 3.5Z"/>
+        </svg>
+        <span class="mono-label tracking-tight">lycbert</span>
+      </a>
+
+      <a href="https://www.youtube.com/@datoemusic" target="_blank" rel="noopener noreferrer"
+         class="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-red-600 hover:bg-red-700 text-white text-[11px] font-bold transition shadow-xs"
+         title="前往 YouTube datoemusic">
+        <svg viewBox="0 0 24 24" class="w-3.5 h-3.5 fill-current" aria-hidden="true">
+          <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+        </svg>
+        <span class="mono-label tracking-tight">datoemusic</span>
+      </a>
+    </div>
+  </div>
+
+  <script>
+    /********************************************************************
+     * 1. HIGH-CONTRAST FLAVORS, MUSICAL PITCHES & STATE CONFIGURATION
+     ********************************************************************/
+    const FLAVORS = [
+      {
+        id: 0,
+        name: '櫻桃紅 (Do · C5)',
+        short: 'Do',
+        color: '#E60026',      // Vivid Cherry Red
+        emissive: '#59000E',
+        freq: 523.25           // C5
+      },
+      {
+        id: 1,
+        name: '柑橘橙 (Re · D5)',
+        short: 'Re',
+        color: '#FF5500',      // Vibrant Tangerine Orange
+        emissive: '#662200',
+        freq: 587.33           // D5
+      },
+      {
+        id: 2,
+        name: '檸檬黃 (Mi · E5)',
+        short: 'Mi',
+        color: '#F2A900',      // Rich Sunny Gold
+        emissive: '#5E4000',
+        freq: 659.25           // E5
+      },
+      {
+        id: 3,
+        name: '青蘋綠 (Sol · G5)',
+        short: 'Sol',
+        color: '#00A838',      // Deep Emerald Green
+        emissive: '#004215',
+        freq: 783.99           // G5
+      },
+      {
+        id: 4,
+        name: '藍莓紫 (La · A5)',
+        short: 'La',
+        color: '#7B1FA2',      // Rich Berry Purple
+        emissive: '#310B42',
+        freq: 880.00           // A5
+      }
+    ];
+
+    const state = {
+      beatsPerBar: 4,                // 4 for 4/4 time, 3 for 3/4 time
+      selectedFlavor: 0,
+      selectedPassengerType: 'adult', // 'adult' (♩), 'child' (♪), or 'sixteenth' (♬×4)
+      wobbleFactor: 0.85,
+      bpm: 92,
+      isPlaying: false,
+      scoreExpanded: false,
+      activeCamPreset: 'reset',
+      currentStep: -1,
+      stepTimer: null,
+      subTimers: [],
+      savedCamPos: null,
+      savedCamTarget: null,
+      departCamActive: false,
+      departCamTimer: 0,
+      // Train Motion State: 'station' | 'departing' | 'departed' | 'arriving'
+      trainPhase: 'station',
+      trainX: 0,
+      trainVelocity: 0,
+      chugTimer: 0,
+      carriages: [
+        { id: 0, name: '第一節車廂', rows: [] },
+        { id: 1, name: '第二節車廂', rows: [] }
+      ]
+    };
+
+    function initCarriageRowsState(beatsPerBar) {
+      for (let c = 0; c < 2; c++) {
+        state.carriages[c].rows = [];
+        for (let r = 0; r < beatsPerBar; r++) {
+          state.carriages[c].rows.push({
+            carriageIndex: c,
+            rowIndex: r,
+            globalBeatIndex: c * beatsPerBar + r,
+            mode: 'empty',        // 'empty' | 'adult' | 'children' | 'sixteenth'
+            adult: null,
+            sixteenth: null,
+            seats: [null, null],
+            localX: 0,
+            seatMeshes: [],
+            rowHighlightMesh: null
+          });
+        }
+      }
+    }
+    initCarriageRowsState(state.beatsPerBar);
+
+    /********************************************************************
+     * 2. WEB AUDIO API SYNTHESIZER (Roll Call Voices + 16th Notes + Whistle)
+     ********************************************************************/
+    let audioCtx = null;
+
+    function ensureAudio() {
+      if (!audioCtx) {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        audioCtx = new AudioContextClass();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+    }
+
+    function playPassengerSound(type, flavorIndex, durationSec, subNoteIdx = 0) {
+      ensureAudio();
+      const now = audioCtx.currentTime;
+      const flavor = FLAVORS[flavorIndex] || FLAVORS[0];
+      let baseFreq = flavor.freq;
+      if (type === 'adult') {
+        baseFreq = flavor.freq * 0.5;
+      } else if (type === 'sixteenth') {
+        baseFreq = flavor.freq * (subNoteIdx % 2 === 1 ? 1.12246 : 1.0);
+      }
+
+      const osc = audioCtx.createOscillator();
+      const subOsc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+
+      osc.type = type === 'adult' ? 'triangle' : type === 'sixteenth' ? 'triangle' : 'sine';
+      subOsc.type = 'sine';
+
+      osc.frequency.setValueAtTime(baseFreq * 0.92, now);
+      osc.frequency.exponentialRampToValueAtTime(baseFreq, now + 0.025);
+
+      subOsc.frequency.setValueAtTime(baseFreq * (type === 'adult' ? 2.0 : 1.5), now);
+
+      const peakGain = type === 'adult' ? 0.38 : type === 'sixteenth' ? 0.28 : 0.30;
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.linearRampToValueAtTime(peakGain, now + 0.012);
+      gain.gain.exponentialRampToValueAtTime(0.0008, now + durationSec);
+
+      const subGain = audioCtx.createGain();
+      subGain.gain.setValueAtTime(0.10, now);
+      subGain.gain.exponentialRampToValueAtTime(0.0005, now + durationSec * 0.65);
+
+      osc.connect(gain);
+      subOsc.connect(subGain);
+      subGain.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      osc.start(now);
+      subOsc.start(now);
+      osc.stop(now + durationSec + 0.02);
+      osc.stop(now + durationSec + 0.02);
+    }
+
+    function playTrainTick(isDownbeat, isCarriageStart) {
+      ensureAudio();
+      const now = audioCtx.currentTime;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      const pitch = isCarriageStart ? 940 : isDownbeat ? 700 : 480;
+      osc.frequency.setValueAtTime(pitch, now);
+      osc.frequency.exponentialRampToValueAtTime(pitch * 0.45, now + 0.045);
+
+      gain.gain.setValueAtTime(isDownbeat ? 0.11 : 0.04, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(now);
+      osc.stop(now + 0.055);
+    }
+
+    function playPopSound(freq = 440) {
+      ensureAudio();
+      const now = audioCtx.currentTime;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq * 0.72, now);
+      osc.frequency.exponentialRampToValueAtTime(freq * 1.38, now + 0.085);
+      gain.gain.setValueAtTime(0.16, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(now);
+      osc.stop(now + 0.1);
+    }
+
+    function playTrainWhistle() {
+      ensureAudio();
+      const now = audioCtx.currentTime;
+
+      const playBlast = (startTime, duration) => {
+        const freqs = [587.33, 739.99, 880.0];
+        freqs.forEach((f, idx) => {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = idx === 0 ? 'sawtooth' : 'triangle';
+          osc.frequency.setValueAtTime(f * 0.97, startTime);
+          osc.frequency.exponentialRampToValueAtTime(f, startTime + 0.06);
+
+          const maxG = idx === 0 ? 0.08 : 0.11;
+          gain.gain.setValueAtTime(0.001, startTime);
+          gain.gain.linearRampToValueAtTime(maxG, startTime + 0.05);
+          gain.gain.setValueAtTime(maxG, startTime + duration - 0.08);
+          gain.gain.exponentialRampToValueAtTime(0.0008, startTime + duration);
+
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(startTime);
+          osc.stop(startTime + duration + 0.02);
+        });
+      };
+
+      playBlast(now, 0.38);
+      playBlast(now + 0.46, 0.65);
+    }
+
+    function playSteamChugSound(intensity = 1.0) {
+      ensureAudio();
+      const now = audioCtx.currentTime;
+      const bufferSize = audioCtx.sampleRate * 0.09;
+      const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.35));
+      }
+
+      const noise = audioCtx.createBufferSource();
+      noise.buffer = buffer;
+
+      const filter = audioCtx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(320, now);
+      filter.Q.setValueAtTime(1.8, now);
+
+      const gain = audioCtx.createGain();
+      gain.gain.setValueAtTime(0.14 * intensity, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.085);
+
+      noise.connect(filter);
+      filter.connect(gain);
+      gain.connect(audioCtx.destination);
+      noise.start(now);
+    }
+
+    /********************************************************************
+     * 3. THREE.JS SCENE, LIGHTING & HIGH-SATURATION GUMMY MATERIALS
+     ********************************************************************/
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+
+    const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 140);
+    const DEFAULT_CAM_POS = new THREE.Vector3(0.9, 7.8, 13.8);
+    const DEFAULT_CAM_TARGET = new THREE.Vector3(0.9, 0.45, 1.05);
+    const TOP_CAM_POS = new THREE.Vector3(0.6, 14.2, 4.4);
+    const TOP_CAM_TARGET = new THREE.Vector3(0.6, 0.4, 0.6);
+    camera.position.copy(DEFAULT_CAM_POS);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
+    container.appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.target.copy(DEFAULT_CAM_TARGET);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.07;
+    controls.maxPolarAngle = Math.PI / 2 - 0.04;
+    controls.minDistance = 7;
+    controls.maxDistance = 26;
+    controls.update();
+
+    function smootherstep(edge0, edge1, x) {
+      const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+      return t * t * t * (t * (t * 6 - 15) + 10);
+    }
+
+    let camTransition = null;
+    function setCamButtonsUI(preset) {
+      state.activeCamPreset = preset;
+      document.getElementById('btn-reset-cam').classList.toggle('cam-btn-active', preset === 'reset');
+      document.getElementById('btn-top-cam').classList.toggle('cam-btn-active', preset === 'top');
+    }
+
+    function flyCameraTo(targetPos, targetLookAt, presetName = 'free', duration = 0.55) {
+      state.departCamActive = false;
+      state.savedCamPos = null;
+      state.savedCamTarget = null;
+      setCamButtonsUI(presetName);
+      controls.enableDamping = false;
+      camTransition = {
+        startPos: camera.position.clone(),
+        startLook: controls.target.clone(),
+        endPos: targetPos.clone(),
+        endLook: targetLookAt.clone(),
+        progress: 0,
+        duration
+      };
+    }
+
+    controls.addEventListener('start', () => {
+      if (camTransition) {
+        camTransition = null;
+        controls.enableDamping = true;
+      }
+      if (state.departCamActive) {
+        state.departCamActive = false;
+        state.savedCamPos = null;
+        state.savedCamTarget = null;
+        controls.enableDamping = true;
+      }
+      setCamButtonsUI('free');
+    });
+
+    function createStudioEnvMap() {
+      const c = document.createElement('canvas');
+      c.width = 512;
+      c.height = 256;
+      const ctx = c.getContext('2d');
+      const grad = ctx.createLinearGradient(0, 0, 0, 256);
+      grad.addColorStop(0, '#ffffff');
+      grad.addColorStop(0.5, '#f5f2eb');
+      grad.addColorStop(1, '#d6d1c4');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 512, 256);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(50, 20, 160, 60);
+      ctx.fillRect(310, 28, 150, 55);
+      ctx.fillRect(180, 95, 160, 38);
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.mapping = THREE.EquirectangularReflectionMapping;
+      tex.encoding = THREE.sRGBEncoding;
+      return tex;
+    }
+    scene.environment = createStudioEnvMap();
+
+    const ambientLight = new THREE.AmbientLight(0xfffdf9, 0.78);
+    scene.add(ambientLight);
+
+    const keyLight = new THREE.DirectionalLight(0xfffef8, 1.28);
+    keyLight.position.set(8, 17, 12);
+    keyLight.castShadow = true;
+    keyLight.shadow.mapSize.width = 2048;
+    keyLight.shadow.mapSize.height = 2048;
+    keyLight.shadow.camera.near = 2;
+    keyLight.shadow.camera.far = 40;
+    const d = 13;
+    keyLight.shadow.camera.left = -d;
+    keyLight.shadow.camera.right = d;
+    keyLight.shadow.camera.top = d;
+    keyLight.shadow.camera.bottom = -d;
+    keyLight.shadow.bias = -0.0005;
+    scene.add(keyLight);
+
+    const rimLight = new THREE.DirectionalLight(0xffe4e6, 0.6);
+    rimLight.position.set(-10, 9, -8);
+    scene.add(rimLight);
+
+    const floorGeo = new THREE.PlaneGeometry(90, 60);
+    const floorMat = new THREE.ShadowMaterial({ opacity: 0.16 });
+    const floorMesh = new THREE.Mesh(floorGeo, floorMat);
+    floorMesh.rotation.x = -Math.PI / 2;
+    floorMesh.position.y = 0;
+    floorMesh.receiveShadow = true;
+    scene.add(floorMesh);
+
+    function createGummyMaterial(flavorIndex) {
+      const f = FLAVORS[flavorIndex] || FLAVORS[0];
+      return new THREE.MeshPhysicalMaterial({
+        color: new THREE.Color(f.color),
+        emissive: new THREE.Color(f.emissive),
+        emissiveIntensity: 0.28,
+        roughness: 0.13,
+        metalness: 0.02,
+        clearcoat: 1.0,
+        clearcoatRoughness: 0.05,
+        reflectivity: 1.0
+      });
+    }
+
+    /********************************************************************
+     * 4. BUILD THE 3D TRAIN, BACKSIDE SCENERY & LOCOMOTIVE
+     ********************************************************************/
+    const trainGroup = new THREE.Group();
+    scene.add(trainGroup);
+
+    const locoWheelMeshes = [];
+    const locoConnectingRods = [];
+    const carriageWheelMeshes = [];
+    const steamParticles = [];
+    const noteBurstParticles = [];
+    const soundRippleRings = [];
+    const backsideTrees = [];
+    const backsideLampBulbs = [];
+    let signalGreenMat = null;
+    let signalRedMat = null;
+    let clockMinuteHand = null;
+
+    const woodMat = new THREE.MeshStandardMaterial({ color: 0xcabaa3, roughness: 0.55 });
+    const railMat = new THREE.MeshStandardMaterial({ color: 0x78716c, roughness: 0.35, metalness: 0.65 });
+    const chassisMat = new THREE.MeshStandardMaterial({ color: 0x1c1917, roughness: 0.35, metalness: 0.3 });
+    const locoBodyMat = new THREE.MeshPhysicalMaterial({
+      color: 0xdc2626,
+      roughness: 0.16,
+      clearcoat: 0.9,
+      clearcoatRoughness: 0.08
+    });
+    const creamMat = new THREE.MeshStandardMaterial({ color: 0xfaf8f5, roughness: 0.25 });
+    const brassMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.22, metalness: 0.75 });
+
+    function buildRailwayTrack() {
+      const trackGroup = new THREE.Group();
+      const railGeo = new THREE.BoxGeometry(70, 0.08, 0.11);
+      const railBack = new THREE.Mesh(railGeo, railMat);
+      railBack.position.set(0, 0.06, -0.78);
+      railBack.receiveShadow = true;
+      const railFront = new THREE.Mesh(railGeo, railMat);
+      railFront.position.set(0, 0.06, 0.78);
+      railFront.receiveShadow = true;
+      trackGroup.add(railBack, railFront);
+
+      const sleeperGeo = new THREE.BoxGeometry(0.32, 0.05, 2.15);
+      for (let x = -34; x <= 34; x += 0.68) {
+        const sleeper = new THREE.Mesh(sleeperGeo, woodMat);
+        sleeper.position.set(x, 0.025, 0);
+        sleeper.receiveShadow = true;
+        trackGroup.add(sleeper);
+      }
+      scene.add(trackGroup);
+    }
+    buildRailwayTrack();
+
+    // 4.1B Build Back-Side Scenery (Trees, Fence, Signal Post, Bench, Clock & Lamps on the other side of the train)
+    const backsideParallaxGroup = new THREE.Group();
+    scene.add(backsideParallaxGroup);
+
+    const backsideStationPropsGroup = new THREE.Group();
+    scene.add(backsideStationPropsGroup);
+
+    function buildBacksideScenery() {
+      // 1. Soft Scenic Turf & Meadow Base Strip behind the tracks (z < -1.35)
+      const turfMat = new THREE.MeshStandardMaterial({ color: 0xdbe2d0, roughness: 0.85 });
+      const turfStrip = new THREE.Mesh(new THREE.BoxGeometry(36, 0.06, 3.6), turfMat);
+      turfStrip.position.set(0.5, 0.03, -3.15);
+      turfStrip.receiveShadow = true;
+      backsideStationPropsGroup.add(turfStrip);
+
+      const curbMat = new THREE.MeshStandardMaterial({ color: 0xc7c2b8, roughness: 0.65 });
+      const curb = new THREE.Mesh(new THREE.BoxGeometry(36, 0.10, 0.16), curbMat);
+      curb.position.set(0.5, 0.05, -1.40);
+      curb.receiveShadow = true;
+      backsideStationPropsGroup.add(curb);
+
+      // 2. Low Wooden Picket / Ranch Fence along the back edge
+      const fenceWoodMat = new THREE.MeshStandardMaterial({ color: 0xe7e0d3, roughness: 0.5 });
+      const railBarGeo = new THREE.BoxGeometry(19.5, 0.05, 0.04);
+      const topRail = new THREE.Mesh(railBarGeo, fenceWoodMat);
+      topRail.position.set(0.8, 0.42, -1.58);
+      const botRail = new THREE.Mesh(railBarGeo, fenceWoodMat);
+      botRail.position.set(0.8, 0.24, -1.58);
+      backsideStationPropsGroup.add(topRail, botRail);
+
+      const postGeo = new THREE.BoxGeometry(0.08, 0.52, 0.08);
+      for (let fx = -8.8; fx <= 10.4; fx += 1.2) {
+        // Leave a gap near the bench & clock
+        if (Math.abs(fx - 1.1) < 1.5) continue;
+        const post = new THREE.Mesh(postGeo, fenceWoodMat);
+        post.position.set(fx, 0.26, -1.58);
+        post.castShadow = true;
+        post.receiveShadow = true;
+        backsideStationPropsGroup.add(post);
+      }
+
+      // 3. Vintage Railway Signal Post (Left-Back near Locomotive: x = -4.2, z = -1.65)
+      const signalGroup = new THREE.Group();
+      signalGroup.position.set(-4.25, 0, -1.68);
+      const darkIronMat = new THREE.MeshStandardMaterial({ color: 0x27272a, roughness: 0.35, metalness: 0.6 });
+
+      const sigBase = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 0.18, 16), darkIronMat);
+      sigBase.position.y = 0.09;
+      const sigPole = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.07, 2.25, 14), darkIronMat);
+      sigPole.position.y = 1.15;
+      sigPole.castShadow = true;
+
+      const sigBox = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.58, 0.22), darkIronMat);
+      sigBox.position.set(0, 2.05, 0.06);
+      sigBox.castShadow = true;
+
+      signalRedMat = new THREE.MeshStandardMaterial({
+        color: 0xef4444,
+        emissive: 0xdc2626,
+        emissiveIntensity: 0.15,
+        roughness: 0.2
+      });
+      signalGreenMat = new THREE.MeshStandardMaterial({
+        color: 0x22c55e,
+        emissive: 0x16a34a,
+        emissiveIntensity: 1.1,
+        roughness: 0.2
+      });
+      const redLens = new THREE.Mesh(new THREE.SphereGeometry(0.075, 14, 14), signalRedMat);
+      redLens.position.set(0, 2.18, 0.15);
+      const greenLens = new THREE.Mesh(new THREE.SphereGeometry(0.075, 14, 14), signalGreenMat);
+      greenLens.position.set(0, 1.92, 0.15);
+
+      // Classic white/red semaphore arm
+      const semArm = new THREE.Mesh(
+        new THREE.BoxGeometry(0.52, 0.11, 0.04),
+        new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.3 })
+      );
+      semArm.position.set(0.24, 1.65, 0);
+      semArm.rotation.z = 0.22;
+
+      signalGroup.add(sigBase, sigPole, sigBox, redLens, greenLens, semArm);
+      backsideStationPropsGroup.add(signalGroup);
+
+      // 4. Wooden Park Bench & Vintage Station Clock Pillar (Center-Back: x = 1.1, z = -1.85)
+      const benchGroup = new THREE.Group();
+      benchGroup.position.set(0.55, 0.06, -1.82);
+      const benchWoodMat = new THREE.MeshStandardMaterial({ color: 0xb48456, roughness: 0.5 });
+      const seatPlank = new THREE.Mesh(new THREE.BoxGeometry(1.25, 0.06, 0.42), benchWoodMat);
+      seatPlank.position.set(0, 0.28, 0);
+      seatPlank.castShadow = true;
+      const backPlank = new THREE.Mesh(new THREE.BoxGeometry(1.25, 0.26, 0.06), benchWoodMat);
+      backPlank.position.set(0, 0.48, -0.18);
+      backPlank.rotation.x = -0.15;
+      backPlank.castShadow = true;
+
+      [-0.50, 0.50].forEach(lx => {
+        const leg = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.28, 0.38), darkIronMat);
+        leg.position.set(lx, 0.14, 0);
+        leg.castShadow = true;
+        benchGroup.add(leg);
+      });
+      benchGroup.add(seatPlank, backPlank);
+      backsideStationPropsGroup.add(benchGroup);
+
+      // Vintage Station Clock Pillar next to the bench
+      const clockGroup = new THREE.Group();
+      clockGroup.position.set(1.75, 0.06, -1.82);
+      const clockBase = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.18, 0.22, 16), darkIronMat);
+      clockBase.position.y = 0.11;
+      const clockPole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.065, 1.75, 14), darkIronMat);
+      clockPole.position.y = 0.95;
+      clockPole.castShadow = true;
+      const clockRim = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.32, 0.32, 0.14, 24).rotateX(Math.PI / 2),
+        brassMat
+      );
+      clockRim.position.y = 1.92;
+      clockRim.castShadow = true;
+      const clockFace = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.26, 0.26, 0.16, 24).rotateX(Math.PI / 2),
+        creamMat
+      );
+      clockFace.position.y = 1.92;
+
+      const hourHand = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.14, 0.02), darkIronMat);
+      hourHand.position.set(0.03, 1.95, 0.09);
+      hourHand.rotation.z = -0.8;
+
+      clockMinuteHand = new THREE.Group();
+      clockMinuteHand.position.set(0, 1.92, 0.095);
+      const minHandMesh = new THREE.Mesh(new THREE.BoxGeometry(0.024, 0.19, 0.02), darkIronMat);
+      minHandMesh.position.y = 0.075;
+      clockMinuteHand.add(minHandMesh);
+
+      clockGroup.add(clockBase, clockPole, clockRim, clockFace, hourHand, clockMinuteHand);
+      backsideStationPropsGroup.add(clockGroup);
+
+      // 5. Vintage Warm Street Lamps along the Back Walk
+      [-1.55, 4.15].forEach(lx => {
+        const lampGroup = new THREE.Group();
+        lampGroup.position.set(lx, 0.06, -1.78);
+
+        const ped = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 0.18, 14), brassMat);
+        ped.position.y = 0.09;
+        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.058, 1.75, 12), darkIronMat);
+        pole.position.y = 0.95;
+        pole.castShadow = true;
+        const cap = new THREE.Mesh(new THREE.ConeGeometry(0.21, 0.14, 16), brassMat);
+        cap.position.y = 1.96;
+
+        const bulbMat = new THREE.MeshStandardMaterial({
+          color: 0xfef08a,
+          emissive: 0xf59e0b,
+          emissiveIntensity: 0.85,
+          roughness: 0.15
+        });
+        const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.14, 16, 16), bulbMat);
+        bulb.position.y = 1.80;
+        backsideLampBulbs.push(bulbMat);
+
+        lampGroup.add(ped, pole, bulb, cap);
+        backsideStationPropsGroup.add(lampGroup);
+      });
+
+      // 6. Soft Low Rolling Hills in the Far Background
+      const hillMat1 = new THREE.MeshStandardMaterial({ color: 0xd4dec7, roughness: 0.9 });
+      const hillMat2 = new THREE.MeshStandardMaterial({ color: 0xc9d5b8, roughness: 0.9 });
+      const hillConfigs = [
+        { x: -6.5, z: -4.6, rx: 4.2, ry: 0.95, rz: 1.5, mat: hillMat1 },
+        { x: 0.8,  z: -4.9, rx: 5.0, ry: 1.15, rz: 1.7, mat: hillMat2 },
+        { x: 7.5,  z: -4.5, rx: 4.0, ry: 0.88, rz: 1.4, mat: hillMat1 }
+      ];
+      hillConfigs.forEach(h => {
+        const hillGeo = new THREE.SphereGeometry(1, 24, 16);
+        hillGeo.scale(h.rx, h.ry, h.rz);
+        const hill = new THREE.Mesh(hillGeo, h.mat);
+        hill.position.set(h.x, -0.15, h.z);
+        hill.receiveShadow = true;
+        backsideStationPropsGroup.add(hill);
+      });
+
+      // 7. Crafted Wooden Toy Trees (Round & Pine Conifer Varieties) + Bushes & Flower Tufts
+      const trunkMat = new THREE.MeshStandardMaterial({ color: 0x8c6239, roughness: 0.65 });
+      const foliagePalette = [
+        0x4d7c0f, // Lush Olive Green
+        0x15803d, // Deep Forest Green
+        0x65a30d, // Fresh Meadow Green
+        0x0f766e, // Pine Teal Green
+        0xd97706  // Warm Autumn Gold Accent
+      ];
+
+      const treeSpecs = [
+        { x: -12.2, z: -2.8, scale: 1.15, style: 'pine',  colorIdx: 1 },
+        { x: -9.5,  z: -2.3, scale: 0.92, style: 'round', colorIdx: 0 },
+        { x: -7.4,  z: -3.4, scale: 1.32, style: 'pine',  colorIdx: 3 },
+        { x: -5.4,  z: -2.5, scale: 0.88, style: 'round', colorIdx: 4 },
+        { x: -2.8,  z: -3.1, scale: 1.22, style: 'round', colorIdx: 2 },
+        { x: -0.6,  z: -2.7, scale: 0.96, style: 'pine',  colorIdx: 1 },
+        { x: 2.8,   z: -3.3, scale: 1.28, style: 'pine',  colorIdx: 0 },
+        { x: 5.5,   z: -2.3, scale: 0.94, style: 'round', colorIdx: 2 },
+        { x: 7.6,   z: -3.2, scale: 1.18, style: 'round', colorIdx: 4 },
+        { x: 10.2,  z: -2.5, scale: 1.05, style: 'pine',  colorIdx: 3 },
+        { x: 12.6,  z: -3.1, scale: 1.25, style: 'round', colorIdx: 1 }
+      ];
+
+      treeSpecs.forEach((spec, idx) => {
+        const tGroup = new THREE.Group();
+        tGroup.position.set(spec.x, 0.05, spec.z);
+        tGroup.scale.setScalar(spec.scale);
+
+        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.14, 0.62, 12), trunkMat);
+        trunk.position.y = 0.31;
+        trunk.castShadow = true;
+        trunk.receiveShadow = true;
+        tGroup.add(trunk);
+
+        const fMat = new THREE.MeshPhysicalMaterial({
+          color: foliagePalette[spec.colorIdx % foliagePalette.length],
+          roughness: 0.32,
+          clearcoat: 0.35,
+          clearcoatRoughness: 0.25
+        });
+
+        if (spec.style === 'pine') {
+          const cone1 = new THREE.Mesh(new THREE.ConeGeometry(0.52, 0.78, 16), fMat);
+          cone1.position.y = 0.82;
+          cone1.castShadow = true;
+          const cone2 = new THREE.Mesh(new THREE.ConeGeometry(0.40, 0.68, 16), fMat);
+          cone2.position.y = 1.24;
+          cone2.castShadow = true;
+          const cone3 = new THREE.Mesh(new THREE.ConeGeometry(0.26, 0.52, 16), fMat);
+          cone3.position.y = 1.60;
+          cone3.castShadow = true;
+          tGroup.add(cone1, cone2, cone3);
+        } else {
+          const mainCrown = new THREE.Mesh(new THREE.SphereGeometry(0.46, 20, 16).scale(1, 1.12, 1), fMat);
+          mainCrown.position.y = 0.86;
+          mainCrown.castShadow = true;
+          const topCrown = new THREE.Mesh(new THREE.SphereGeometry(0.32, 16, 14), fMat);
+          topCrown.position.set(0.06, 1.32, 0);
+          topCrown.castShadow = true;
+          const sideCrown = new THREE.Mesh(new THREE.SphereGeometry(0.28, 16, 14), fMat);
+          sideCrown.position.set(-0.22, 0.78, 0.12);
+          sideCrown.castShadow = true;
+          tGroup.add(mainCrown, topCrown, sideCrown);
+        }
+
+        // Add cute low bush & candy-colored flower dots near the base of every other tree
+        if (idx % 2 === 0) {
+          const bush = new THREE.Mesh(new THREE.SphereGeometry(0.22, 14, 12).scale(1.3, 0.85, 1.1), fMat);
+          bush.position.set(0.38, 0.16, 0.22);
+          bush.castShadow = true;
+          tGroup.add(bush);
+
+          const flowerFlavor = FLAVORS[idx % FLAVORS.length];
+          const flowerMat = new THREE.MeshBasicMaterial({ color: flowerFlavor.color });
+          const flower = new THREE.Mesh(new THREE.SphereGeometry(0.055, 10, 10), flowerMat);
+          flower.position.set(0.42, 0.32, 0.32);
+          tGroup.add(flower);
+        }
+
+        backsideParallaxGroup.add(tGroup);
+        backsideTrees.push({
+          group: tGroup,
+          baseX: spec.x,
+          baseScale: spec.scale,
+          bounceAmp: 0,
+          phase: idx * 0.95
+        });
+      });
+    }
+    buildBacksideScenery();
+
+    function addWheelPair(parent, xOffset, radius = 0.34, targetArray = locoWheelMeshes) {
+      const wheelGeo = new THREE.CylinderGeometry(radius, radius, 0.16, 24);
+      wheelGeo.rotateX(Math.PI / 2);
+      const hubGeo = new THREE.CylinderGeometry(radius * 0.46, radius * 0.46, 0.19, 16);
+      hubGeo.rotateX(Math.PI / 2);
+      const spokeGeo = new THREE.BoxGeometry(radius * 1.7, 0.05, 0.20);
+
+      [-0.82, 0.82].forEach(zPos => {
+        const wheelGroup = new THREE.Group();
+        wheelGroup.position.set(xOffset, radius, zPos);
+        const tire = new THREE.Mesh(wheelGeo, chassisMat);
+        tire.castShadow = true;
+        const hub = new THREE.Mesh(hubGeo, brassMat);
+        const spoke1 = new THREE.Mesh(spokeGeo, brassMat);
+        const spoke2 = new THREE.Mesh(spokeGeo, brassMat);
+        spoke2.rotation.z = Math.PI / 2;
+        wheelGroup.add(tire, hub, spoke1, spoke2);
+        parent.add(wheelGroup);
+        targetArray.push(wheelGroup);
+      });
+    }
+
+    const locoGroup = new THREE.Group();
+    locoGroup.position.set(-5.75, 0, 0);
+    trainGroup.add(locoGroup);
+
+    function buildLocomotive() {
+      const base = new THREE.Mesh(new THREE.BoxGeometry(2.9, 0.22, 1.85), chassisMat);
+      base.position.set(0, 0.42, 0);
+      base.castShadow = true;
+      base.receiveShadow = true;
+      locoGroup.add(base);
+
+      const bumper = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.28, 1.65), brassMat);
+      bumper.position.set(-1.48, 0.42, 0);
+      locoGroup.add(bumper);
+
+      const boilerGeo = new THREE.CylinderGeometry(0.68, 0.68, 1.65, 28);
+      boilerGeo.rotateZ(Math.PI / 2);
+      const boiler = new THREE.Mesh(boilerGeo, locoBodyMat);
+      boiler.position.set(-0.42, 1.12, 0);
+      boiler.castShadow = true;
+      locoGroup.add(boiler);
+
+      [-0.88, -0.15].forEach(bx => {
+        const band = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.695, 0.695, 0.05, 28).rotateZ(Math.PI / 2),
+          brassMat
+        );
+        band.position.set(bx, 1.12, 0);
+        locoGroup.add(band);
+      });
+
+      const noseGeo = new THREE.SphereGeometry(0.68, 24, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+      noseGeo.rotateZ(Math.PI / 2);
+      const nose = new THREE.Mesh(noseGeo, locoBodyMat);
+      nose.position.set(-1.24, 1.12, 0);
+      nose.castShadow = true;
+      locoGroup.add(nose);
+
+      const lightMesh = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.22, 0.22, 0.12, 20).rotateZ(Math.PI / 2),
+        new THREE.MeshBasicMaterial({ color: 0xfef08a })
+      );
+      lightMesh.position.set(-1.62, 1.15, 0);
+      locoGroup.add(lightMesh);
+
+      const chimney = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.16, 0.55, 20), chassisMat);
+      chimney.position.set(-0.85, 1.9, 0);
+      chimney.castShadow = true;
+      locoGroup.add(chimney);
+
+      const chimneyRim = new THREE.Mesh(new THREE.TorusGeometry(0.21, 0.045, 12, 24).rotateX(Math.PI / 2), brassMat);
+      chimneyRim.position.set(-0.85, 2.18, 0);
+      locoGroup.add(chimneyRim);
+
+      const cab = new THREE.Mesh(new THREE.BoxGeometry(1.15, 1.55, 1.68), creamMat);
+      cab.position.set(0.75, 1.3, 0);
+      cab.castShadow = true;
+      locoGroup.add(cab);
+
+      const cabRoof = new THREE.Mesh(new THREE.BoxGeometry(1.32, 0.14, 1.82), locoBodyMat);
+      cabRoof.position.set(0.75, 2.12, 0);
+      cabRoof.castShadow = true;
+      locoGroup.add(cabRoof);
+
+      const winMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.1, metalness: 0.2, transparent: true, opacity: 0.45 });
+      const winMesh = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.58, 1.72), winMat);
+      winMesh.position.set(0.75, 1.52, 0);
+      locoGroup.add(winMesh);
+
+      addWheelPair(locoGroup, -0.78, 0.36, locoWheelMeshes);
+      addWheelPair(locoGroup, 0.68, 0.42, locoWheelMeshes);
+
+      const rodGeo = new THREE.BoxGeometry(1.56, 0.06, 0.04);
+      [-0.92, 0.92].forEach(zSide => {
+        const rod = new THREE.Mesh(rodGeo, brassMat);
+        rod.position.set(-0.05, 0.38, zSide);
+        locoGroup.add(rod);
+        locoConnectingRods.push({ mesh: rod, baseX: -0.05, baseY: 0.38 });
+      });
+    }
+    buildLocomotive();
+
+    function spawnSteamPuff(flavorIdx = 0, sizeScale = 1.0) {
+      const f = FLAVORS[flavorIdx % FLAVORS.length];
+      const mat = new THREE.MeshPhysicalMaterial({
+        color: new THREE.Color(f.color),
+        emissive: new THREE.Color(f.emissive),
+        emissiveIntensity: 0.25,
+        roughness: 0.15,
+        clearcoat: 1,
+        transparent: true,
+        opacity: 0.88
+      });
+      const puff = new THREE.Mesh(new THREE.SphereGeometry(0.20 * sizeScale, 16, 16), mat);
+      const worldChimneyX = trainGroup.position.x - 5.75 - 0.85;
+      puff.position.set(worldChimneyX, 2.32, (Math.random() - 0.5) * 0.18);
+      scene.add(puff);
+      steamParticles.push({
+        mesh: puff,
+        vy: 0.04 + Math.random() * 0.02,
+        vx: 0.015 + Math.random() * 0.02,
+        scale: 1,
+        life: 1.0
+      });
+    }
+
+    const starBurstGeo = new THREE.OctahedronGeometry(0.075, 0);
+    const rippleRingGeo = new THREE.RingGeometry(0.22, 0.32, 28);
+    rippleRingGeo.rotateX(-Math.PI / 2);
+
+    function spawnNoteBurst(worldPos, flavorIdx = 0, count = 4) {
+      const f = FLAVORS[flavorIdx % FLAVORS.length] || FLAVORS[0];
+      for (let i = 0; i < count; i++) {
+        const mat = new THREE.MeshBasicMaterial({
+          color: i % 2 === 0 ? new THREE.Color(f.color) : new THREE.Color(0xfef08a),
+          transparent: true,
+          opacity: 0.95
+        });
+        const star = new THREE.Mesh(starBurstGeo, mat);
+        const angle = (Math.PI * 2 * i) / count + Math.random() * 0.5;
+        const speed = 0.025 + Math.random() * 0.025;
+        star.position.set(
+          worldPos.x + (Math.random() - 0.5) * 0.25,
+          worldPos.y + 0.95 + Math.random() * 0.2,
+          worldPos.z + (Math.random() - 0.5) * 0.25
+        );
+        scene.add(star);
+        noteBurstParticles.push({
+          mesh: star,
+          vx: Math.cos(angle) * speed,
+          vy: 0.045 + Math.random() * 0.03,
+          vz: Math.sin(angle) * speed,
+          rotSpeed: 0.12 + Math.random() * 0.15,
+          life: 1.0
+        });
+      }
+
+      const ringMat = new THREE.MeshBasicMaterial({
+        color: new THREE.Color(f.color),
+        transparent: true,
+        opacity: 0.8,
+        side: THREE.DoubleSide,
+        depthWrite: false
+      });
+      const ringMesh = new THREE.Mesh(rippleRingGeo, ringMat);
+      ringMesh.position.set(worldPos.x, 0.76, worldPos.z);
+      scene.add(ringMesh);
+      soundRippleRings.push({
+        mesh: ringMesh,
+        scale: 0.85,
+        life: 1.0
+      });
+    }
+
+    const carriagesContainer = new THREE.Group();
+    trainGroup.add(carriagesContainer);
+
+    const SEAT_Z_OFFSETS = [-0.46, 0.46];
+    const interactiveSeatMeshes = [];
+
+    const playheadBeamMat = new THREE.MeshBasicMaterial({
+      color: 0xfbbf24,
+      transparent: true,
+      opacity: 0.0,
+      side: THREE.DoubleSide
+    });
+    const playheadBeam = new THREE.Mesh(new THREE.BoxGeometry(0.86, 2.3, 1.96), playheadBeamMat);
+    playheadBeam.position.set(0, 1.4, 0);
+    trainGroup.add(playheadBeam);
+
+    function getCarriageLayoutConfig(beatsPerBar) {
+      if (beatsPerBar === 3) {
+        return {
+          centers: [-1.72, 2.18],
+          rowOffsets: [-0.92, 0.0, 0.92],
+          chassisWidth: 3.22,
+          deckWidth: 3.08,
+          railWidth: 3.14,
+          wallX: 1.55,
+          couplerX: -1.90,
+          wheelX: 0.96
+        };
+      }
+      return {
+        centers: [-1.25, 3.55],
+        rowOffsets: [-1.38, -0.46, 0.46, 1.38],
+        chassisWidth: 4.12,
+        deckWidth: 3.98,
+        railWidth: 4.04,
+        wallX: 2.0,
+        couplerX: -2.35,
+        wheelX: 1.28
+      };
+    }
+
+    function buildCarriages() {
+      while (carriagesContainer.children.length > 0) {
+        carriagesContainer.remove(carriagesContainer.children[0]);
+      }
+      interactiveSeatMeshes.length = 0;
+      carriageWheelMeshes.length = 0;
+
+      const cfg = getCarriageLayoutConfig(state.beatsPerBar);
+      const carriageDeckMat = new THREE.MeshStandardMaterial({ color: 0xf5efe6, roughness: 0.35 });
+      const carriageTrimCodes = [0x0284c7, 0xd97706];
+
+      cfg.centers.forEach((cx, cIdx) => {
+        const cGroup = new THREE.Group();
+        cGroup.position.set(cx, 0, 0);
+        carriagesContainer.add(cGroup);
+
+        const trimMat = new THREE.MeshStandardMaterial({ color: carriageTrimCodes[cIdx], roughness: 0.3 });
+
+        const coupler = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.85, 12).rotateZ(Math.PI / 2), chassisMat);
+        coupler.position.set(cfg.couplerX, 0.42, 0);
+        cGroup.add(coupler);
+
+        const chassis = new THREE.Mesh(new THREE.BoxGeometry(cfg.chassisWidth, 0.22, 1.98), chassisMat);
+        chassis.position.set(0, 0.42, 0);
+        chassis.castShadow = true;
+        chassis.receiveShadow = true;
+        cGroup.add(chassis);
+
+        const deck = new THREE.Mesh(new THREE.BoxGeometry(cfg.deckWidth, 0.08, 1.86), carriageDeckMat);
+        deck.position.set(0, 0.56, 0);
+        deck.receiveShadow = true;
+        cGroup.add(deck);
+
+        const backRail = new THREE.Mesh(new THREE.BoxGeometry(cfg.railWidth, 0.16, 0.08), trimMat);
+        backRail.position.set(0, 0.68, -0.92);
+        const frontRail = new THREE.Mesh(new THREE.BoxGeometry(cfg.railWidth, 0.16, 0.08), trimMat);
+        frontRail.position.set(0, 0.68, 0.92);
+        cGroup.add(backRail, frontRail);
+
+        const leftWall = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.48, 1.92), trimMat);
+        leftWall.position.set(-cfg.wallX, 0.80, 0);
+        const rightWall = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.48, 1.92), trimMat);
+        rightWall.position.set(cfg.wallX, 0.80, 0);
+        cGroup.add(rightWall, leftWall);
+
+        addWheelPair(cGroup, -cfg.wheelX, 0.34, carriageWheelMeshes);
+        addWheelPair(cGroup, cfg.wheelX, 0.34, carriageWheelMeshes);
+
+        cfg.rowOffsets.forEach((rx, rIdx) => {
+          const rowState = state.carriages[cIdx].rows[rIdx];
+          rowState.localX = cx + rx;
+
+          if (rIdx > 0) {
+            const divLine = new THREE.Mesh(
+              new THREE.BoxGeometry(0.04, 0.04, 1.76),
+              new THREE.MeshBasicMaterial({ color: 0xa8a29e })
+            );
+            divLine.position.set(rx - 0.46, 0.61, 0);
+            cGroup.add(divLine);
+          }
+
+          const rowHighlight = new THREE.Mesh(
+            new THREE.BoxGeometry(0.82, 0.08, 1.72),
+            new THREE.MeshBasicMaterial({ color: 0x10b981, transparent: true, opacity: 0.0 })
+          );
+          rowHighlight.position.set(rx, 0.63, 0);
+          cGroup.add(rowHighlight);
+          rowState.rowHighlightMesh = rowHighlight;
+
+          SEAT_Z_OFFSETS.forEach((sz, sIdx) => {
+            const seatGroup = new THREE.Group();
+            seatGroup.position.set(rx, 0.62, sz);
+            cGroup.add(seatGroup);
+
+            const cushionMat = new THREE.MeshStandardMaterial({
+              color: 0x334155,
+              roughness: 0.4,
+              emissive: 0x000000,
+              emissiveIntensity: 0
+            });
+            const cushion = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.13, 0.68), cushionMat);
+            cushion.position.y = 0.065;
+            cushion.castShadow = true;
+            cushion.receiveShadow = true;
+            seatGroup.add(cushion);
+
+            const backrest = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.38, 0.66), trimMat);
+            backrest.position.set(0.28, 0.24, 0);
+            backrest.castShadow = true;
+            seatGroup.add(backrest);
+
+            cushion.userData = {
+              isSeat: true,
+              carriageIndex: cIdx,
+              rowIndex: rIdx,
+              seatIndex: sIdx
+            };
+            rowState.seatMeshes.push(cushion);
+            interactiveSeatMeshes.push(cushion);
+          });
+        });
+      });
+    }
+    buildCarriages();
+
+    /********************************************************************
+     * 5. BUILD HIGH-CONTRAST GUMMY PASSENGERS (大人 ♩, 小孩 ♪, 四胞胎 ♬×4)
+     ********************************************************************/
+    const hitboxMat = new THREE.MeshBasicMaterial({
+      transparent: true,
+      opacity: 0,
+      depthWrite: false
+    });
+
+    function buildMiniQuadrupletSubFigure(gummyMat, darkNoteMat, whiteRimMat, zPos) {
+      const figGroup = new THREE.Group();
+      figGroup.position.set(0, 0, zPos);
+
+      const s = 0.44;
+      const belly = new THREE.Mesh(new THREE.SphereGeometry(0.35 * s, 20, 16).scale(1.0, 1.08, 0.92), gummyMat);
+      belly.position.y = 0.36 * s;
+      belly.castShadow = true;
+      figGroup.add(belly);
+
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.28 * s, 20, 16), gummyMat);
+      head.position.y = 0.84 * s;
+      head.castShadow = true;
+      figGroup.add(head);
+
+      [-0.17 * s, 0.17 * s].forEach(zEar => {
+        const ear = new THREE.Mesh(new THREE.SphereGeometry(0.095 * s, 12, 12), gummyMat);
+        ear.position.set(0, 1.05 * s, zEar);
+        figGroup.add(ear);
+      });
+
+      const armGeo = new THREE.CylinderGeometry(0.06 * s, 0.07 * s, 0.32 * s, 10);
+      const leftArm = new THREE.Mesh(armGeo, gummyMat);
+      leftArm.position.set(-0.03 * s, 0.48 * s, -0.32 * s);
+      leftArm.rotation.x = Math.PI / 2.5;
+      const rightArm = new THREE.Mesh(armGeo, gummyMat);
+      rightArm.position.set(-0.03 * s, 0.48 * s, 0.32 * s);
+      rightArm.rotation.x = -Math.PI / 2.5;
+      figGroup.add(leftArm, rightArm);
+
+      const eyesGroup = new THREE.Group();
+      eyesGroup.position.set(-0.245 * s, 0.86 * s, 0);
+      [-0.085 * s, 0.085 * s].forEach(zEye => {
+        const eyeWhite = new THREE.Mesh(new THREE.SphereGeometry(0.055 * s, 10, 10), whiteRimMat);
+        eyeWhite.position.set(0, 0, zEye);
+        const eyePupil = new THREE.Mesh(new THREE.SphereGeometry(0.036 * s, 10, 10), darkNoteMat);
+        eyePupil.position.set(-0.027 * s, 0, zEye);
+        eyesGroup.add(eyeWhite, eyePupil);
+      });
+      figGroup.add(eyesGroup);
+
+      const mouthMesh = new THREE.Mesh(new THREE.SphereGeometry(0.038 * s, 10, 10), darkNoteMat);
+      mouthMesh.position.set(-0.265 * s, 0.74 * s, 0);
+      mouthMesh.scale.set(0.55, 0.35, 1.0);
+      figGroup.add(mouthMesh);
+
+      const noteHead = new THREE.Mesh(
+        new THREE.SphereGeometry(0.065, 12, 12).scale(1.25, 0.9, 0.9),
+        darkNoteMat
+      );
+      noteHead.position.set(0, 0.56, 0);
+      noteHead.rotation.z = -0.3;
+      figGroup.add(noteHead);
+
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.28, 8), darkNoteMat);
+      stem.position.set(0, 0.70, 0.03);
+      figGroup.add(stem);
+
+      figGroup.userData = {
+        eyesGroup,
+        mouthMesh,
+        mouthOpen: 0,
+        blinkOffset: Math.random() * 6,
+        jumpY: 0,
+        wobbleAmp: 0,
+        wobblePhase: Math.random() * Math.PI * 2
+      };
+
+      return figGroup;
+    }
+
+    function createGummyPassengerMesh(type, flavorIndex) {
+      const root = new THREE.Group();
+      const bodyGroup = new THREE.Group();
+      root.add(bodyGroup);
+
+      const gummyMat = createGummyMaterial(flavorIndex);
+      const darkNoteMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.15 });
+      const whiteRimMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+
+      if (type === 'sixteenth') {
+        const hitbox = new THREE.Mesh(new THREE.BoxGeometry(0.85, 1.25, 1.55), hitboxMat);
+        hitbox.position.y = 0.55;
+        root.add(hitbox);
+
+        const baseBar = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.08, 1.36), gummyMat);
+        baseBar.position.set(0, 0.05, 0);
+        baseBar.castShadow = true;
+        bodyGroup.add(baseBar);
+
+        const zPositions = [-0.57, -0.19, 0.19, 0.57];
+        const miniFigures = [];
+        zPositions.forEach((zPos) => {
+          const miniFig = buildMiniQuadrupletSubFigure(gummyMat, darkNoteMat, whiteRimMat, zPos);
+          bodyGroup.add(miniFig);
+          miniFigures.push(miniFig);
+        });
+
+        const beam1 = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.045, 1.22), darkNoteMat);
+        beam1.position.set(0, 0.83, 0.03);
+        const beam2 = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.045, 1.22), darkNoteMat);
+        beam2.position.set(0, 0.75, 0.03);
+        bodyGroup.add(beam1, beam2);
+
+        root.userData = {
+          isPassenger: true,
+          type: 'sixteenth',
+          flavorIndex,
+          gummyMat,
+          bodyGroup,
+          miniFigures,
+          eyesGroup: null,
+          mouthMesh: null,
+          mouthOpen: 0,
+          blinkOffset: Math.random() * 6,
+          leftArm: null,
+          rightArm: null,
+          jumpY: 0,
+          scaleY: 1,
+          scaleXZ: 1,
+          wobblePhase: Math.random() * Math.PI * 2,
+          wobbleAmp: 0,
+          isPlatformSpawner: false,
+          spawnerSlot: null,
+          seatedInfo: null
+        };
+
+        root.traverse(child => {
+          if (child.isMesh) child.userData.passengerRoot = root;
+        });
+
+        return root;
+      }
+
+      const isAdult = type === 'adult';
+      const scale = isAdult ? 1.06 : 0.72;
+
+      const hitboxGeo = new THREE.CylinderGeometry(0.54 * scale, 0.54 * scale, 1.75 * scale, 12);
+      const hitbox = new THREE.Mesh(hitboxGeo, hitboxMat);
+      hitbox.position.y = 0.75 * scale;
+      root.add(hitbox);
+
+      const bellyGeo = new THREE.SphereGeometry(0.37 * scale, 28, 22);
+      bellyGeo.scale(1.02, 1.08, isAdult ? 1.32 : 1.0);
+      const belly = new THREE.Mesh(bellyGeo, gummyMat);
+      belly.position.y = 0.37 * scale;
+      belly.castShadow = true;
+      bodyGroup.add(belly);
+
+      const headGeo = new THREE.SphereGeometry(0.28 * scale, 28, 22);
+      const head = new THREE.Mesh(headGeo, gummyMat);
+      head.position.y = 0.84 * scale;
+      head.castShadow = true;
+      bodyGroup.add(head);
+
+      const earGeo = new THREE.SphereGeometry(0.10 * scale, 16, 16);
+      [-0.18 * scale, 0.18 * scale].forEach(zEar => {
+        const ear = new THREE.Mesh(earGeo, gummyMat);
+        ear.position.set(0, 1.06 * scale, zEar);
+        bodyGroup.add(ear);
+      });
+
+      const armGeo = new THREE.CylinderGeometry(0.07 * scale, 0.085 * scale, 0.34 * scale, 14);
+      const leftArm = new THREE.Mesh(armGeo, gummyMat);
+      leftArm.position.set(-0.04 * scale, 0.50 * scale, -0.39 * scale * (isAdult ? 1.18 : 1));
+      leftArm.rotation.x = Math.PI / 3.1;
+
+      const rightArm = new THREE.Mesh(armGeo, gummyMat);
+      rightArm.position.set(-0.04 * scale, 0.50 * scale, 0.39 * scale * (isAdult ? 1.18 : 1));
+      rightArm.rotation.x = -Math.PI / 3.1;
+      bodyGroup.add(leftArm, rightArm);
+
+      const eyesGroup = new THREE.Group();
+      eyesGroup.position.set(-0.245 * scale, 0.86 * scale, 0);
+      [-0.09 * scale, 0.09 * scale].forEach(zEye => {
+        const eyeWhite = new THREE.Mesh(new THREE.SphereGeometry(0.052 * scale, 12, 12), whiteRimMat);
+        eyeWhite.position.set(0, 0, zEye);
+        const eyePupil = new THREE.Mesh(new THREE.SphereGeometry(0.035 * scale, 12, 12), darkNoteMat);
+        eyePupil.position.set(-0.027 * scale, 0, zEye);
+        eyesGroup.add(eyeWhite, eyePupil);
+      });
+      bodyGroup.add(eyesGroup);
+
+      const mouthMesh = new THREE.Mesh(new THREE.SphereGeometry(0.038 * scale, 12, 12), darkNoteMat);
+      mouthMesh.position.set(-0.265 * scale, 0.74 * scale, 0);
+      mouthMesh.scale.set(0.55, 0.35, 1.05);
+      bodyGroup.add(mouthMesh);
+
+      const noteGroup = new THREE.Group();
+      noteGroup.position.set(0, 1.18 * scale, 0);
+      bodyGroup.add(noteGroup);
+
+      const noteHead = new THREE.Mesh(
+        new THREE.SphereGeometry(0.095, 16, 16).scale(1.3, 0.95, 0.95),
+        darkNoteMat
+      );
+      noteHead.rotation.z = -0.35;
+      noteGroup.add(noteHead);
+
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.026, 0.38, 10), darkNoteMat);
+      stem.position.set(0.08, 0.19, 0);
+      noteGroup.add(stem);
+
+      if (!isAdult) {
+        const flag = new THREE.Mesh(new THREE.BoxGeometry(0.19, 0.055, 0.035), darkNoteMat);
+        flag.position.set(0.16, 0.31, 0);
+        flag.rotation.z = -0.48;
+        noteGroup.add(flag);
+      }
+
+      root.userData = {
+        isPassenger: true,
+        type,
+        flavorIndex,
+        gummyMat,
+        bodyGroup,
+        eyesGroup,
+        mouthMesh,
+        mouthOpen: 0,
+        blinkOffset: Math.random() * 6,
+        leftArm,
+        rightArm,
+        jumpY: 0,
+        scaleY: 1,
+        scaleXZ: 1,
+        wobblePhase: Math.random() * Math.PI * 2,
+        wobbleAmp: 0,
+        isPlatformSpawner: false,
+        spawnerSlot: null,
+        seatedInfo: null
+      };
+
+      root.traverse(child => {
+        if (child.isMesh) {
+          child.userData.passengerRoot = root;
+        }
+      });
+
+      return root;
+    }
+
+    // 5.2 Build Foreground Waiting Platform (月台候車區 — Characters Spawn with Random Pitches!)
+    const platformGroup = new THREE.Group();
+    platformGroup.position.set(0.8, 0, 3.35);
+    scene.add(platformGroup);
+
+    const platformPadMat = new THREE.MeshStandardMaterial({ color: 0xe7e2d8, roughness: 0.45 });
+    const platformBase = new THREE.Mesh(new THREE.BoxGeometry(7.6, 0.18, 1.85), platformPadMat);
+    platformBase.position.y = 0.09;
+    platformBase.receiveShadow = true;
+    platformBase.castShadow = true;
+    platformGroup.add(platformBase);
+
+    const safetyLine = new THREE.Mesh(
+      new THREE.BoxGeometry(7.35, 0.02, 0.10),
+      new THREE.MeshBasicMaterial({ color: 0xf59e0b })
+    );
+    safetyLine.position.set(0, 0.185, -0.78);
+    platformGroup.add(safetyLine);
+
+    const platformSpawners = [
+      { type: 'adult', localX: -2.95, instance: null, padMat: null },
+      { type: 'adult', localX: -1.75, instance: null, padMat: null },
+      { type: 'child', localX: -0.60, instance: null, padMat: null },
+      { type: 'child', localX: 0.35, instance: null, padMat: null },
+      { type: 'sixteenth', localX: 1.55, instance: null, padMat: null },
+      { type: 'sixteenth', localX: 2.75, instance: null, padMat: null }
+    ];
+
+    platformSpawners.forEach((slot) => {
+      const padRadius = slot.type === 'adult' ? 0.44 : slot.type === 'sixteenth' ? 0.46 : 0.34;
+      const padMat = new THREE.MeshStandardMaterial({
+        color: 0xd6d1c7,
+        roughness: 0.4,
+        transparent: true,
+        opacity: 0.42
+      });
+      const padMesh = new THREE.Mesh(new THREE.CylinderGeometry(padRadius, padRadius, 0.02, 20), padMat);
+      if (slot.type === 'sixteenth') padMesh.scale.set(0.82, 1, 1.45);
+      padMesh.position.set(slot.localX, 0.19, 0);
+      platformGroup.add(padMesh);
+      slot.padMat = padMat;
+    });
+
+    const allPassengerRoots = [];
+
+    // Spawn waiting-area characters with RANDOM pitch/flavor
+    function refillPlatformSpawners() {
+      platformSpawners.forEach((slot) => {
+        if (!slot.instance) {
+          const randomFlavorIdx = Math.floor(Math.random() * FLAVORS.length);
+          const p = createGummyPassengerMesh(slot.type, randomFlavorIdx);
+          const worldX = platformGroup.position.x + slot.localX;
+          const worldZ = platformGroup.position.z;
+          p.position.set(worldX, 0.18, worldZ);
+          p.userData.isPlatformSpawner = true;
+          p.userData.spawnerSlot = slot;
+          p.userData.homePos = new THREE.Vector3(worldX, 0.18, worldZ);
+          p.userData.wobbleAmp = 0.38;
+          scene.add(p);
+          allPassengerRoots.push(p);
+          slot.instance = p;
+          if (slot.padMat) {
+            slot.padMat.color.set(FLAVORS[randomFlavorIdx].color);
+          }
+        }
+      });
+    }
+    refillPlatformSpawners();
+
+    // Randomize all waiting-area characters' pitches
+    function randomizePlatformSpawnersPitches() {
+      platformSpawners.forEach((slot) => {
+        if (slot.instance && slot.instance.userData.isPlatformSpawner) {
+          const randomFlavorIdx = Math.floor(Math.random() * FLAVORS.length);
+          const f = FLAVORS[randomFlavorIdx];
+          slot.instance.userData.flavorIndex = randomFlavorIdx;
+          slot.instance.userData.gummyMat.color.set(f.color);
+          slot.instance.userData.gummyMat.emissive.set(f.emissive);
+          slot.instance.userData.wobbleAmp = 0.42;
+          if (slot.padMat) slot.padMat.color.set(f.color);
+        }
+      });
+    }
+
+    function setFlavorSelectionUI(idx) {
+      state.selectedFlavor = idx;
+      document.querySelectorAll('.flavor-orb').forEach(b => {
+        b.classList.toggle('active', parseInt(b.dataset.flavor, 10) === idx);
+      });
+      const f = FLAVORS[idx] || FLAVORS[0];
+      document.getElementById('flavor-name').textContent = f.name;
+      document.getElementById('flavor-aura').style.backgroundColor = f.color;
+    }
+
+    /********************************************************************
+     * 6. SEATING MANAGEMENT (Supports Adult ♩, Child ♪, and Quadruplets ♬×4)
+     ********************************************************************/
+    function pulseBacksideTrees(strength = 0.12) {
+      backsideTrees.forEach(tr => {
+        tr.bounceAmp = Math.max(tr.bounceAmp, strength);
+      });
+    }
+
+    function removePassengerMesh(pRoot) {
+      if (!pRoot) return;
+      if (pRoot.parent) pRoot.parent.remove(pRoot);
+      const idx = allPassengerRoots.indexOf(pRoot);
+      if (idx !== -1) allPassengerRoots.splice(idx, 1);
+    }
+
+    function clearRow(cIdx, rIdx) {
+      const row = state.carriages[cIdx].rows[rIdx];
+      if (!row) return;
+      if (row.adult) {
+        removePassengerMesh(row.adult);
+        row.adult = null;
+      }
+      if (row.sixteenth) {
+        removePassengerMesh(row.sixteenth);
+        row.sixteenth = null;
+      }
+      for (let s = 0; s < 2; s++) {
+        if (row.seats[s]) {
+          removePassengerMesh(row.seats[s]);
+          row.seats[s] = null;
+        }
+      }
+      row.mode = 'empty';
+    }
+
+    function placeAdultInRow(cIdx, rIdx, flavorIndex, existingMesh = null) {
+      if (rIdx >= state.beatsPerBar) return;
+      clearRow(cIdx, rIdx);
+      const row = state.carriages[cIdx].rows[rIdx];
+      const mesh = existingMesh || createGummyPassengerMesh('adult', flavorIndex);
+      if (!allPassengerRoots.includes(mesh)) {
+        allPassengerRoots.push(mesh);
+      }
+      trainGroup.add(mesh);
+      mesh.position.set(row.localX, 0.72, 0);
+      mesh.userData.isPlatformSpawner = false;
+      mesh.userData.spawnerSlot = null;
+      mesh.userData.seatedInfo = { carriageIndex: cIdx, rowIndex: rIdx, seatIndex: -1 };
+      mesh.userData.wobbleAmp = 0.65 * state.wobbleFactor;
+      mesh.userData.jumpY = 0.22;
+      mesh.userData.mouthOpen = 0.9;
+
+      row.mode = 'adult';
+      row.adult = mesh;
+      updateScoreAndStats();
+    }
+
+    function placeSixteenthInRow(cIdx, rIdx, flavorIndex, existingMesh = null) {
+      if (rIdx >= state.beatsPerBar) return;
+      clearRow(cIdx, rIdx);
+      const row = state.carriages[cIdx].rows[rIdx];
+      const mesh = existingMesh || createGummyPassengerMesh('sixteenth', flavorIndex);
+      if (!allPassengerRoots.includes(mesh)) {
+        allPassengerRoots.push(mesh);
+      }
+      trainGroup.add(mesh);
+      mesh.position.set(row.localX, 0.72, 0);
+      mesh.userData.isPlatformSpawner = false;
+      mesh.userData.spawnerSlot = null;
+      mesh.userData.seatedInfo = { carriageIndex: cIdx, rowIndex: rIdx, seatIndex: -1 };
+      mesh.userData.wobbleAmp = 0.72 * state.wobbleFactor;
+      mesh.userData.jumpY = 0.24;
+      if (mesh.userData.miniFigures) {
+        mesh.userData.miniFigures.forEach((mf, idx) => {
+          mf.userData.jumpY = 0.18 + idx * 0.04;
+          mf.userData.wobbleAmp = 0.75 * state.wobbleFactor;
+          mf.userData.mouthOpen = 0.9;
+        });
+      }
+
+      row.mode = 'sixteenth';
+      row.sixteenth = mesh;
+      updateScoreAndStats();
+    }
+
+    function placeChildInSeat(cIdx, rIdx, sIdx, flavorIndex, existingMesh = null) {
+      if (rIdx >= state.beatsPerBar) return;
+      const row = state.carriages[cIdx].rows[rIdx];
+      if (row.adult) {
+        removePassengerMesh(row.adult);
+        row.adult = null;
+      }
+      if (row.sixteenth) {
+        removePassengerMesh(row.sixteenth);
+        row.sixteenth = null;
+      }
+      if (row.seats[sIdx]) {
+        removePassengerMesh(row.seats[sIdx]);
+        row.seats[sIdx] = null;
+      }
+
+      const mesh = existingMesh || createGummyPassengerMesh('child', flavorIndex);
+      if (!allPassengerRoots.includes(mesh)) {
+        allPassengerRoots.push(mesh);
+      }
+      trainGroup.add(mesh);
+      mesh.position.set(row.localX, 0.72, SEAT_Z_OFFSETS[sIdx]);
+      mesh.userData.isPlatformSpawner = false;
+      mesh.userData.spawnerSlot = null;
+      mesh.userData.seatedInfo = { carriageIndex: cIdx, rowIndex: rIdx, seatIndex: sIdx };
+      mesh.userData.wobbleAmp = 0.65 * state.wobbleFactor;
+      mesh.userData.jumpY = 0.22;
+      mesh.userData.mouthOpen = 0.9;
+
+      row.seats[sIdx] = mesh;
+      row.mode = (row.seats[0] || row.seats[1]) ? 'children' : 'empty';
+      updateScoreAndStats();
+    }
+
+    function unseatPassenger(pRoot) {
+      const info = pRoot.userData.seatedInfo;
+      if (!info) return;
+      const row = state.carriages[info.carriageIndex].rows[info.rowIndex];
+      if (row) {
+        if (row.adult === pRoot) {
+          row.adult = null;
+          row.mode = 'empty';
+        } else if (row.sixteenth === pRoot) {
+          row.sixteenth = null;
+          row.mode = 'empty';
+        } else {
+          if (row.seats[0] === pRoot) row.seats[0] = null;
+          if (row.seats[1] === pRoot) row.seats[1] = null;
+          row.mode = (row.seats[0] || row.seats[1]) ? 'children' : 'empty';
+        }
+      }
+      pRoot.userData.seatedInfo = null;
+      updateScoreAndStats();
+    }
+
+    function getPassengerWorldPosition(pRoot, zOffset = 0) {
+      const worldPos = new THREE.Vector3(0, 0, zOffset);
+      pRoot.localToWorld(worldPos);
+      return worldPos;
+    }
+
+    function getFourSixteenthNotesSVG(isExpanded = false) {
+      const sizeClass = isExpanded ? 'w-12 h-8 sm:w-14 sm:h-9' : 'w-9 h-6 sm:w-11 sm:h-7';
+      return `
+        <svg viewBox="0 0 76 44" class="${sizeClass} mx-auto" fill="currentColor" aria-label="四個十六分音符">
+          <rect x="12" y="4.5" width="57" height="5" rx="1.5" />
+          <rect x="12" y="12.5" width="57" height="5" rx="1.5" />
+          <rect x="12" y="5.5" width="3.5" height="27.5" />
+          <rect x="30" y="5.5" width="3.5" height="27.5" />
+          <rect x="48" y="5.5" width="3.5" height="27.5" />
+          <rect x="65.5" y="5.5" width="3.5" height="27.5" />
+          <ellipse cx="8.2" cy="33.5" rx="6.4" ry="4.7" transform="rotate(-18 8.2 33.5)" />
+          <ellipse cx="26.2" cy="33.5" rx="6.4" ry="4.7" transform="rotate(-18 26.2 33.5)" />
+          <ellipse cx="44.2" cy="33.5" rx="6.4" ry="4.7" transform="rotate(-18 44.2 33.5)" />
+          <ellipse cx="62.2" cy="33.5" rx="6.4" ry="4.7" transform="rotate(-18 62.2 33.5)" />
+        </svg>
+      `;
+    }
+
+    function updateScoreAndStats() {
+      let adultCount = 0;
+      let childCount = 0;
+      let sixteenthGroupCount = 0;
+      const bpb = state.beatsPerBar;
+      const exp = state.scoreExpanded;
+      const scoreGrid = document.getElementById('score-grid');
+      scoreGrid.className = `grid ${bpb === 3 ? 'grid-cols-6' : 'grid-cols-8'} gap-1.5 sm:gap-2`;
+      scoreGrid.innerHTML = '';
+
+      const noteSizeClass = exp ? 'text-2xl sm:text-4xl' : 'text-xl sm:text-2xl';
+      const cellHeightClass = exp ? 'min-h-[82px] sm:min-h-[98px] p-2' : 'min-h-[54px] sm:min-h-[62px] px-1.5 py-1';
+
+      for (let c = 0; c < 2; c++) {
+        for (let r = 0; r < bpb; r++) {
+          const row = state.carriages[c].rows[r];
+          const globalBeat = c * bpb + r;
+
+          let symbolHtml = `<span class="${noteSizeClass} font-black leading-none text-stone-400">𝄽</span>`;
+          let label = '休止';
+          let dotColors = ['#d6d3cd', '#d6d3cd'];
+
+          if (row.mode === 'adult' && row.adult) {
+            adultCount++;
+            const fIdx = row.adult.userData.flavorIndex;
+            const f = FLAVORS[fIdx];
+            const pitchShiftPx = (fIdx - 2) * -2.0;
+            symbolHtml = `<span class="pitch-glyph inline-block ${noteSizeClass} font-black leading-none" style="transform:translateY(${pitchShiftPx}px);">♩</span>`;
+            label = f.short;
+            dotColors = [f.color, f.color];
+          } else if (row.mode === 'sixteenth' && row.sixteenth) {
+            sixteenthGroupCount++;
+            const fIdx = row.sixteenth.userData.flavorIndex;
+            const f = FLAVORS[fIdx];
+            const pitchShiftPx = (fIdx - 2) * -1.8;
+            symbolHtml = `<div class="pitch-glyph inline-block w-full" style="transform:translateY(${pitchShiftPx}px);">${getFourSixteenthNotesSVG(exp)}</div>`;
+            label = f.short;
+            dotColors = [f.color, f.color, f.color, f.color];
+          } else if (row.mode === 'children') {
+            const s0 = row.seats[0];
+            const s1 = row.seats[1];
+            if (s0) childCount++;
+            if (s1) childCount++;
+
+            if (s0 && s1) {
+              const avgF = (s0.userData.flavorIndex + s1.userData.flavorIndex) * 0.5;
+              const pitchShiftPx = (avgF - 2) * -2.0;
+              symbolHtml = `<span class="pitch-glyph inline-block ${noteSizeClass} font-black leading-none" style="transform:translateY(${pitchShiftPx}px);">♫</span>`;
+              label = `${FLAVORS[s0.userData.flavorIndex].short}·${FLAVORS[s1.userData.flavorIndex].short}`;
+              dotColors = [FLAVORS[s0.userData.flavorIndex].color, FLAVORS[s1.userData.flavorIndex].color];
+            } else if (s0 && !s1) {
+              symbolHtml = `<span class="text-lg sm:text-xl font-black leading-none">♪ 𝄾</span>`;
+              label = FLAVORS[s0.userData.flavorIndex].short;
+              dotColors = [FLAVORS[s0.userData.flavorIndex].color, '#d6d3cd'];
+            } else if (!s0 && s1) {
+              symbolHtml = `<span class="text-lg sm:text-xl font-black leading-none">𝄾 ♪</span>`;
+              label = FLAVORS[s1.userData.flavorIndex].short;
+              dotColors = ['#d6d3cd', FLAVORS[s1.userData.flavorIndex].color];
+            }
+          }
+
+          const dotsHtml = dotColors.map(col =>
+            `<span class="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full border border-black/15" style="background:${col}"></span>`
+          ).join('');
+
+          const carriageBorderClass = c === 0
+            ? 'border-sky-300/90 bg-sky-50/40'
+            : 'border-amber-300/90 bg-amber-50/40';
+          const measureDividerClass = (r === 0 && c === 1) ? 'ml-1 ring-1 ring-amber-400/60' : '';
+          const downbeatClass = r === 0 ? 'downbeat-cell' : '';
+
+          const cell = document.createElement('button');
+          cell.id = `score-beat-${globalBeat}`;
+          cell.type = 'button';
+          cell.className = `beat-cell ${downbeatClass} rounded-xl ${cellHeightClass} bg-white hover:bg-stone-50 border ${carriageBorderClass} ${measureDividerClass} flex flex-col items-center justify-between cursor-pointer text-stone-900 shadow-sm`;
+          cell.innerHTML = `
+            <div class="w-full flex items-center justify-between text-[9px] sm:text-[10px] mono-label font-bold text-stone-500 leading-none">
+              <span>${c + 1}-${r + 1}</span>
+              <span class="flex gap-0.5">${dotsHtml}</span>
+            </div>
+            <div class="my-0.5 flex items-center justify-center w-full">${symbolHtml}</div>
+            <div class="beat-subtext text-[9px] sm:text-[10px] font-extrabold text-stone-600 truncate w-full text-center leading-none">${label}</div>
+          `;
+
+          cell.addEventListener('click', () => {
+            if (state.trainPhase === 'station') {
+              triggerRowPreview(c, r);
+            }
+          });
+
+          scoreGrid.appendChild(cell);
+        }
+      }
+
+      const totalFigures = adultCount + childCount + sixteenthGroupCount * 4;
+      document.getElementById('stat-passengers').textContent = totalFigures;
+      document.getElementById('stat-subtext').textContent = `大人${adultCount}·小孩${childCount}·四胞胎${sixteenthGroupCount}`;
+    }
+
+    /********************************************************************
+     * 7. 100% RELIABLE 3D DRAG-AND-DROP (Capture Phase Pointer Events)
+     ********************************************************************/
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+    const dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -1.15);
+    const dragIntersectPoint = new THREE.Vector3();
+
+    let draggedPassenger = null;
+    let activePointerId = null;
+    let pointerDownScreenPos = { x: 0, y: 0 };
+    let hoveredSeatData = null;
+
+    function updatePointerNDC(e) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    }
+
+    function clearAllSeatHighlights() {
+      for (let c = 0; c < 2; c++) {
+        for (let r = 0; r < state.beatsPerBar; r++) {
+          const row = state.carriages[c].rows[r];
+          if (!row) continue;
+          if (row.rowHighlightMesh) row.rowHighlightMesh.material.opacity = 0;
+          row.seatMeshes.forEach(m => {
+            m.material.emissive.setHex(0x000000);
+            m.material.emissiveIntensity = 0;
+          });
+        }
+      }
+    }
+
+    function findTargetSeatForPoint(worldPt, passengerType) {
+      if (state.trainPhase !== 'station') return null;
+      let bestMatch = null;
+      let minDist = 1.35;
+
+      for (let c = 0; c < 2; c++) {
+        for (let r = 0; r < state.beatsPerBar; r++) {
+          const row = state.carriages[c].rows[r];
+          const rowWorldX = trainGroup.position.x + row.localX;
+          if (passengerType === 'adult' || passengerType === 'sixteenth') {
+            const dx = worldPt.x - rowWorldX;
+            const dz = worldPt.z - 0;
+            const dist = Math.hypot(dx, dz * 0.6);
+            if (dist < minDist) {
+              minDist = dist;
+              bestMatch = { carriageIndex: c, rowIndex: r, seatIndex: -1 };
+            }
+          } else {
+            for (let s = 0; s < 2; s++) {
+              const dx = worldPt.x - rowWorldX;
+              const dz = worldPt.z - SEAT_Z_OFFSETS[s];
+              const dist = Math.hypot(dx, dz);
+              if (dist < minDist) {
+                minDist = dist;
+                bestMatch = { carriageIndex: c, rowIndex: r, seatIndex: s };
+              }
+            }
+          }
+        }
+      }
+      return bestMatch;
+    }
+
+    function onPointerDownCapture(e) {
+      if (e.button === 2) return;
+      if (state.trainPhase !== 'station') return;
+
+      updatePointerNDC(e);
+      pointerDownScreenPos = { x: e.clientX, y: e.clientY };
+      raycaster.setFromCamera(pointer, camera);
+
+      const passengerMeshes = [];
+      allPassengerRoots.forEach(root => {
+        root.traverse(ch => {
+          if (ch.isMesh) passengerMeshes.push(ch);
+        });
+      });
+
+      const hits = raycaster.intersectObjects(passengerMeshes, false);
+      if (hits.length > 0) {
+        const hitRoot = hits[0].object.userData.passengerRoot;
+        if (hitRoot) {
+          e.stopPropagation();
+          controls.enabled = false;
+
+          draggedPassenger = hitRoot;
+          activePointerId = e.pointerId;
+          try {
+            renderer.domElement.setPointerCapture(e.pointerId);
+          } catch (_) {}
+
+          const worldPos = getPassengerWorldPosition(hitRoot);
+          scene.add(hitRoot);
+          hitRoot.position.copy(worldPos);
+          hitRoot.position.y = 1.25;
+
+          if (hitRoot.userData.seatedInfo) {
+            unseatPassenger(hitRoot);
+          }
+
+          setFlavorSelectionUI(hitRoot.userData.flavorIndex);
+          setPassengerTypeUI(hitRoot.userData.type);
+          playPopSound(hitRoot.userData.type === 'adult' ? 380 : 560);
+          document.body.style.cursor = 'grabbing';
+        }
+      }
+    }
+
+    function onPointerMove(e) {
+      if (state.trainPhase !== 'station') return;
+      updatePointerNDC(e);
+      raycaster.setFromCamera(pointer, camera);
+
+      if (draggedPassenger) {
+        e.stopPropagation();
+        if (raycaster.ray.intersectPlane(dragPlane, dragIntersectPoint)) {
+          draggedPassenger.position.x = dragIntersectPoint.x;
+          draggedPassenger.position.z = dragIntersectPoint.z;
+          draggedPassenger.position.y = 1.28;
+          draggedPassenger.userData.scaleY = 1.22;
+          draggedPassenger.userData.scaleXZ = 0.88;
+
+          clearAllSeatHighlights();
+          hoveredSeatData = findTargetSeatForPoint(draggedPassenger.position, draggedPassenger.userData.type);
+          if (hoveredSeatData) {
+            const row = state.carriages[hoveredSeatData.carriageIndex].rows[hoveredSeatData.rowIndex];
+            if (draggedPassenger.userData.type === 'adult' || draggedPassenger.userData.type === 'sixteenth') {
+              row.rowHighlightMesh.material.opacity = 0.65;
+              row.seatMeshes.forEach(m => {
+                m.material.emissive.setHex(0x10b981);
+                m.material.emissiveIntensity = 0.65;
+              });
+            } else {
+              const seatMesh = row.seatMeshes[hoveredSeatData.seatIndex];
+              seatMesh.material.emissive.setHex(0x10b981);
+              seatMesh.material.emissiveIntensity = 0.75;
+            }
+          }
+        }
+        return;
+      }
+
+      const passengerMeshes = [];
+      allPassengerRoots.forEach(r => r.traverse(ch => { if (ch.isMesh) passengerMeshes.push(ch); }));
+      const pHits = raycaster.intersectObjects(passengerMeshes, false);
+      if (pHits.length > 0) {
+        document.body.style.cursor = 'grab';
+        return;
+      }
+
+      const sHits = raycaster.intersectObjects(interactiveSeatMeshes, false);
+      document.body.style.cursor = sHits.length > 0 ? 'pointer' : 'default';
+    }
+
+    function onPointerUp(e) {
+      const moveDist = Math.hypot(e.clientX - pointerDownScreenPos.x, e.clientY - pointerDownScreenPos.y);
+
+      if (draggedPassenger) {
+        try {
+          if (activePointerId !== null) renderer.domElement.releasePointerCapture(activePointerId);
+        } catch (_) {}
+        activePointerId = null;
+
+        clearAllSeatHighlights();
+        const target = findTargetSeatForPoint(draggedPassenger.position, draggedPassenger.userData.type);
+
+        if (target) {
+          if (draggedPassenger.userData.isPlatformSpawner && draggedPassenger.userData.spawnerSlot) {
+            draggedPassenger.userData.spawnerSlot.instance = null;
+            draggedPassenger.userData.isPlatformSpawner = false;
+            draggedPassenger.userData.spawnerSlot = null;
+            refillPlatformSpawners();
+          }
+
+          if (draggedPassenger.userData.type === 'adult') {
+            placeAdultInRow(target.carriageIndex, target.rowIndex, draggedPassenger.userData.flavorIndex, draggedPassenger);
+            playPassengerSound('adult', draggedPassenger.userData.flavorIndex, 0.45);
+            spawnRollCallBadge(draggedPassenger, '♩ 入座 (1拍)');
+            spawnNoteBurst(getPassengerWorldPosition(draggedPassenger), draggedPassenger.userData.flavorIndex, 4);
+          } else if (draggedPassenger.userData.type === 'sixteenth') {
+            placeSixteenthInRow(target.carriageIndex, target.rowIndex, draggedPassenger.userData.flavorIndex, draggedPassenger);
+            for (let k = 0; k < 4; k++) {
+              setTimeout(() => {
+                playPassengerSound('sixteenth', draggedPassenger.userData.flavorIndex, 0.12, k);
+              }, k * 95);
+            }
+            spawnRollCallBadge(draggedPassenger, '♬ 四胞胎入座 (16分×4)');
+            spawnNoteBurst(getPassengerWorldPosition(draggedPassenger), draggedPassenger.userData.flavorIndex, 5);
+          } else {
+            placeChildInSeat(target.carriageIndex, target.rowIndex, target.seatIndex, draggedPassenger.userData.flavorIndex, draggedPassenger);
+            playPassengerSound('child', draggedPassenger.userData.flavorIndex, 0.25);
+            spawnRollCallBadge(draggedPassenger, '♪ 入座 (半拍)');
+            spawnNoteBurst(getPassengerWorldPosition(draggedPassenger), draggedPassenger.userData.flavorIndex, 3);
+          }
+        } else {
+          if (draggedPassenger.userData.isPlatformSpawner && draggedPassenger.userData.homePos) {
+            draggedPassenger.position.copy(draggedPassenger.userData.homePos);
+            draggedPassenger.userData.wobbleAmp = 0.45;
+            playPopSound(320);
+          } else {
+            playPopSound(250);
+            removePassengerMesh(draggedPassenger);
+            updateScoreAndStats();
+          }
+        }
+
+        draggedPassenger = null;
+        hoveredSeatData = null;
+        controls.enabled = true;
+        document.body.style.cursor = 'default';
+        return;
+      }
+
+      if (moveDist < 7 && state.trainPhase === 'station') {
+        updatePointerNDC(e);
+        raycaster.setFromCamera(pointer, camera);
+
+        const seatHits = raycaster.intersectObjects(interactiveSeatMeshes, false);
+        if (seatHits.length > 0) {
+          const { carriageIndex, rowIndex, seatIndex } = seatHits[0].object.userData;
+          if (state.selectedPassengerType === 'adult') {
+            placeAdultInRow(carriageIndex, rowIndex, state.selectedFlavor);
+            const p = state.carriages[carriageIndex].rows[rowIndex].adult;
+            playPassengerSound('adult', state.selectedFlavor, 0.45);
+            if (p) {
+              spawnRollCallBadge(p, '♩ 1拍');
+              spawnNoteBurst(getPassengerWorldPosition(p), state.selectedFlavor, 4);
+            }
+          } else if (state.selectedPassengerType === 'sixteenth') {
+            placeSixteenthInRow(carriageIndex, rowIndex, state.selectedFlavor);
+            const p = state.carriages[carriageIndex].rows[rowIndex].sixteenth;
+            for (let k = 0; k < 4; k++) {
+              setTimeout(() => {
+                playPassengerSound('sixteenth', state.selectedFlavor, 0.12, k);
+              }, k * 95);
+            }
+            if (p) {
+              spawnRollCallBadge(p, '♬ 16分×4');
+              spawnNoteBurst(getPassengerWorldPosition(p), state.selectedFlavor, 5);
+            }
+          } else {
+            placeChildInSeat(carriageIndex, rowIndex, seatIndex, state.selectedFlavor);
+            const p = state.carriages[carriageIndex].rows[rowIndex].seats[seatIndex];
+            playPassengerSound('child', state.selectedFlavor, 0.25);
+            if (p) {
+              spawnRollCallBadge(p, '♪ 半拍');
+              spawnNoteBurst(getPassengerWorldPosition(p), state.selectedFlavor, 3);
+            }
+          }
+        }
+      }
+    }
+
+    window.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      if (state.trainPhase !== 'station') return;
+      updatePointerNDC(e);
+      raycaster.setFromCamera(pointer, camera);
+      const passengerMeshes = [];
+      allPassengerRoots.forEach(r => r.traverse(ch => { if (ch.isMesh) passengerMeshes.push(ch); }));
+      const hits = raycaster.intersectObjects(passengerMeshes, false);
+      if (hits.length > 0) {
+        const hitRoot = hits[0].object.userData.passengerRoot;
+        if (hitRoot && hitRoot.userData.seatedInfo) {
+          unseatPassenger(hitRoot);
+          removePassengerMesh(hitRoot);
+          playPopSound(240);
+        }
+      }
+    });
+
+    renderer.domElement.addEventListener('pointerdown', onPointerDownCapture, { capture: true });
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerUp);
+
+    /********************************************************************
+     * 8. ROLL CALL ("點名") SEQUENCER, AUTO-HIDE UI & TRAIN DEPARTURE
+     ********************************************************************/
+    const worldLabelsContainer = document.getElementById('world-labels');
+    const persistentWorldLabels = [];
+
+    function createPersistentLabel(text, subtext, localPos, followTrain = true) {
+      const el = document.createElement('div');
+      el.className = 'world-label text-center';
+      el.innerHTML = `
+        <div class="px-3 py-1 rounded-full bg-white/92 backdrop-blur-md border border-stone-300 shadow-md">
+          <span class="label-main mono-label text-[10px] font-black tracking-wider uppercase text-stone-900">${text}</span>
+          ${subtext ? `<span class="label-sub text-[10px] font-semibold text-stone-600 ml-1">${subtext}</span>` : ''}
+        </div>
+      `;
+      worldLabelsContainer.appendChild(el);
+      const item = { el, localPos, followTrain };
+      persistentWorldLabels.push(item);
+      return item;
+    }
+
+    const labelCarriage1 = createPersistentLabel('第一節車廂', '1–4 拍', new THREE.Vector3(-1.25, 2.25, 0), true);
+    const labelCarriage2 = createPersistentLabel('第二節車廂', '1–4 拍', new THREE.Vector3(3.55, 2.25, 0), true);
+    const labelPlatform = createPersistentLabel('月台候車區', '', new THREE.Vector3(0.8, 0.1, 4.45), false);
+
+    function updateCarriageWorldLabels() {
+      const cfg = getCarriageLayoutConfig(state.beatsPerBar);
+      labelCarriage1.localPos.x = cfg.centers[0];
+      labelCarriage2.localPos.x = cfg.centers[1];
+      const subText = `1–${state.beatsPerBar} 拍`;
+      const sub1 = labelCarriage1.el.querySelector('.label-sub');
+      const sub2 = labelCarriage2.el.querySelector('.label-sub');
+      if (sub1) sub1.textContent = subText;
+      if (sub2) sub2.textContent = subText;
+    }
+
+    function spawnRollCallBadge(passengerRoot, text, zOffset = 0) {
+      if (!passengerRoot) return;
+      const pos = getPassengerWorldPosition(passengerRoot, zOffset);
+      pos.y += 1.45;
+      pos.project(camera);
+
+      const x = (pos.x * 0.5 + 0.5) * window.innerWidth;
+      const y = (-(pos.y * 0.5) + 0.5) * window.innerHeight;
+
+      const f = FLAVORS[passengerRoot.userData.flavorIndex] || FLAVORS[0];
+      const badge = document.createElement('div');
+      badge.className = 'rollcall-pop px-3.5 py-1 rounded-full font-black text-xs shadow-xl border-2 border-white flex items-center gap-1';
+      badge.style.left = `${x}px`;
+      badge.style.top = `${y}px`;
+      badge.style.backgroundColor = f.color;
+      badge.style.color = '#ffffff';
+      badge.innerHTML = `<span>${text}</span>`;
+      document.body.appendChild(badge);
+
+      setTimeout(() => badge.remove(), 780);
+    }
+
+    function clearSubTimers() {
+      state.subTimers.forEach(t => clearTimeout(t));
+      state.subTimers = [];
+    }
+
+    function triggerSixteenthQuadrupletBeat(pRoot, beatDurationSec) {
+      if (!pRoot) return;
+      const sixteenthSec = beatDurationSec / 4;
+      const syllables = ['滴! ♬', '哩! ♬', '滴! ♬', '啦! ♬'];
+      const zPositions = [-0.57, -0.19, 0.19, 0.57];
+      const f = FLAVORS[pRoot.userData.flavorIndex];
+
+      for (let k = 0; k < 4; k++) {
+        const timerId = setTimeout(() => {
+          if (!pRoot.parent) return;
+          if (pRoot.userData.miniFigures && pRoot.userData.miniFigures[k]) {
+            const mf = pRoot.userData.miniFigures[k];
+            mf.userData.jumpY = 0.46;
+            mf.userData.wobbleAmp = 0.95 * state.wobbleFactor;
+            mf.userData.mouthOpen = 1.0;
+          }
+          pRoot.userData.wobbleAmp = Math.max(pRoot.userData.wobbleAmp, 0.45 * state.wobbleFactor);
+          playPassengerSound('sixteenth', pRoot.userData.flavorIndex, sixteenthSec * 0.88, k);
+          spawnRollCallBadge(pRoot, `${syllables[k]} (${f.short})`, zPositions[k]);
+          spawnNoteBurst(getPassengerWorldPosition(pRoot, zPositions[k]), pRoot.userData.flavorIndex, 2);
+        }, k * sixteenthSec * 1000);
+        state.subTimers.push(timerId);
+      }
+    }
+
+    const centerBanner = document.getElementById('center-banner');
+    const bannerIcon = document.getElementById('banner-icon');
+    const bannerTitle = document.getElementById('banner-title');
+    const bannerDesc = document.getElementById('banner-desc');
+    const bannerActionBtn = document.getElementById('banner-action-btn');
+
+    function showBanner(icon, title, desc, btnText) {
+      bannerIcon.textContent = icon;
+      bannerTitle.textContent = title;
+      bannerDesc.textContent = desc;
+      bannerActionBtn.textContent = btnText;
+      centerBanner.classList.remove('is-hidden', 'opacity-0', 'scale-95', 'pointer-events-none');
+      centerBanner.classList.add('opacity-100', 'scale-100', 'pointer-events-auto');
+    }
+
+    function hideBanner() {
+      centerBanner.classList.add('is-hidden', 'opacity-0', 'scale-95', 'pointer-events-none');
+      centerBanner.classList.remove('opacity-100', 'scale-100', 'pointer-events-auto');
+    }
+
+    function triggerRowPreview(cIdx, rIdx) {
+      const row = state.carriages[cIdx].rows[rIdx];
+      if (!row) return;
+      const beatDurationSec = 60 / state.bpm;
+
+      playheadBeam.position.x = row.localX;
+      playheadBeamMat.opacity = 0.28;
+      pulseBacksideTrees(0.08);
+      setTimeout(() => {
+        if (!state.isPlaying) playheadBeamMat.opacity = 0;
+      }, beatDurationSec * 1000);
+
+      if (row.mode === 'adult' && row.adult) {
+        const p = row.adult;
+        p.userData.jumpY = 0.45;
+        p.userData.wobbleAmp = 0.9 * state.wobbleFactor;
+        p.userData.mouthOpen = 1.0;
+        const f = FLAVORS[p.userData.flavorIndex];
+        playPassengerSound('adult', p.userData.flavorIndex, beatDurationSec * 0.92);
+        spawnRollCallBadge(p, `答! ♩ (${f.short})`);
+        spawnNoteBurst(getPassengerWorldPosition(p), p.userData.flavorIndex, 4);
+      } else if (row.mode === 'sixteenth' && row.sixteenth) {
+        triggerSixteenthQuadrupletBeat(row.sixteenth, beatDurationSec);
+      } else if (row.mode === 'children') {
+        if (row.seats[0]) {
+          const p0 = row.seats[0];
+          p0.userData.jumpY = 0.38;
+          p0.userData.wobbleAmp = 0.8 * state.wobbleFactor;
+          p0.userData.mouthOpen = 1.0;
+          const f0 = FLAVORS[p0.userData.flavorIndex];
+          playPassengerSound('child', p0.userData.flavorIndex, beatDurationSec * 0.42);
+          spawnRollCallBadge(p0, `滴! ♪ (${f0.short})`, SEAT_Z_OFFSETS[0]);
+          spawnNoteBurst(getPassengerWorldPosition(p0), p0.userData.flavorIndex, 3);
+        }
+        if (row.seats[1]) {
+          setTimeout(() => {
+            const p1 = row.seats[1];
+            if (!p1) return;
+            p1.userData.jumpY = 0.38;
+            p1.userData.wobbleAmp = 0.8 * state.wobbleFactor;
+            p1.userData.mouthOpen = 1.0;
+            const f1 = FLAVORS[p1.userData.flavorIndex];
+            playPassengerSound('child', p1.userData.flavorIndex, beatDurationSec * 0.42);
+            spawnRollCallBadge(p1, `嗒! ♪ (${f1.short})`, SEAT_Z_OFFSETS[1]);
+            spawnNoteBurst(getPassengerWorldPosition(p1), p1.userData.flavorIndex, 3);
+          }, beatDurationSec * 500);
+        }
+      } else {
+        playTrainTick(true, false);
+      }
+    }
+
+    function advanceRollCallStep() {
+      if (!state.isPlaying) return;
+
+      state.currentStep++;
+      const totalBeats = state.beatsPerBar * 2;
+      const totalSteps = totalBeats * 2;
+
+      if (state.currentStep >= totalSteps) {
+        stopRollCall(true);
+        return;
+      }
+
+      const step = state.currentStep;
+      const globalBeat = Math.floor(step / 2);
+      const subBeat = step % 2;
+      const carriageIndex = Math.floor(globalBeat / state.beatsPerBar);
+      const rowIndex = globalBeat % state.beatsPerBar;
+
+      const row = state.carriages[carriageIndex].rows[rowIndex];
+      const beatDurationSec = 60 / state.bpm;
+      const halfBeatSec = beatDurationSec / 2;
+
+      playheadBeam.position.x = row.localX;
+      playheadBeamMat.opacity = subBeat === 0 ? 0.34 : 0.20;
+
+      const beatText = `${rowIndex + 1}/${state.beatsPerBar}${subBeat === 1 ? ' &' : ''}`;
+      const pct = `${((step + 1) / totalSteps) * 100}%`;
+
+      document.getElementById('stat-beat').textContent = beatText;
+      document.getElementById('beat-progress-bar').style.width = pct;
+      document.getElementById('hud-carriage-label').textContent = carriageIndex === 0 ? '第一節車廂' : '第二節車廂';
+      document.getElementById('hud-beat-badge').textContent = beatText;
+      document.getElementById('hud-progress-bar').style.width = pct;
+
+      for (let b = 0; b < totalBeats; b++) {
+        const cell = document.getElementById(`score-beat-${b}`);
+        if (cell) cell.classList.toggle('playing', b === globalBeat);
+      }
+
+      clearAllSeatHighlights();
+      if (row.mode === 'adult' || row.mode === 'sixteenth') {
+        row.seatMeshes.forEach(m => {
+          m.material.emissive.setHex(0xf59e0b);
+          m.material.emissiveIntensity = 0.65;
+        });
+      } else {
+        const activeSeatMesh = row.seatMeshes[subBeat];
+        if (activeSeatMesh) {
+          activeSeatMesh.material.emissive.setHex(0xf59e0b);
+          activeSeatMesh.material.emissiveIntensity = 0.75;
+        }
+      }
+
+      playTrainTick(subBeat === 0, subBeat === 0 && rowIndex === 0);
+      if (subBeat === 0) {
+        spawnSteamPuff(globalBeat, rowIndex === 0 ? 1.25 : 0.95);
+        pulseBacksideTrees(rowIndex === 0 ? 0.14 : 0.07);
+      }
+
+      if (row.mode === 'adult' && row.adult) {
+        if (subBeat === 0) {
+          const p = row.adult;
+          p.userData.jumpY = 0.48;
+          p.userData.wobbleAmp = 0.95 * state.wobbleFactor;
+          p.userData.mouthOpen = 1.0;
+          const f = FLAVORS[p.userData.flavorIndex];
+          playPassengerSound('adult', p.userData.flavorIndex, beatDurationSec * 0.92);
+          spawnRollCallBadge(p, `點名：大人 ♩ (${f.short})`);
+          spawnNoteBurst(getPassengerWorldPosition(p), p.userData.flavorIndex, 4);
+        } else {
+          row.adult.userData.wobbleAmp = Math.max(row.adult.userData.wobbleAmp, 0.4 * state.wobbleFactor);
+          row.adult.userData.mouthOpen = Math.max(row.adult.userData.mouthOpen, 0.65);
+        }
+      } else if (row.mode === 'sixteenth' && row.sixteenth) {
+        if (subBeat === 0) {
+          triggerSixteenthQuadrupletBeat(row.sixteenth, beatDurationSec);
+        }
+      } else if (row.mode === 'children') {
+        const childPassenger = row.seats[subBeat];
+        if (childPassenger) {
+          childPassenger.userData.jumpY = 0.42;
+          childPassenger.userData.wobbleAmp = 0.88 * state.wobbleFactor;
+          childPassenger.userData.mouthOpen = 1.0;
+          const f = FLAVORS[childPassenger.userData.flavorIndex];
+          playPassengerSound('child', childPassenger.userData.flavorIndex, halfBeatSec * 0.88);
+          spawnRollCallBadge(childPassenger, `${subBeat === 0 ? '滴' : '嗒'}! 小孩 ♪ (${f.short})`, SEAT_Z_OFFSETS[subBeat]);
+          spawnNoteBurst(getPassengerWorldPosition(childPassenger), childPassenger.userData.flavorIndex, 3);
+        }
+      }
+
+      state.stepTimer = setTimeout(advanceRollCallStep, halfBeatSec * 1000);
+    }
+
+    function startRollCall() {
+      ensureAudio();
+      if (state.trainPhase !== 'station') {
+        arriveTrainAtStation();
+        return;
+      }
+      if (state.isPlaying) return;
+      hideBanner();
+      clearSubTimers();
+      document.getElementById('btn-depart').classList.remove('depart-ready');
+
+      state.isPlaying = true;
+      state.currentStep = -1;
+
+      document.body.classList.add('is-playing-rollcall');
+      labelPlatform.el.style.display = 'none';
+      const minimalHud = document.getElementById('playback-minimal-hud');
+      minimalHud.classList.remove('is-hidden', 'opacity-0', '-translate-y-4', 'pointer-events-none');
+      minimalHud.classList.add('opacity-100', 'translate-y-0', 'pointer-events-auto');
+
+      document.getElementById('play-icon').textContent = '■';
+      document.getElementById('play-text').textContent = '停止點名 (Stop Roll Call)';
+      document.getElementById('btn-play').classList.replace('bg-[#18181b]', 'bg-rose-600');
+      document.getElementById('btn-play').classList.replace('hover:bg-stone-800', 'hover:bg-rose-700');
+      advanceRollCallStep();
+    }
+
+    function stopRollCall(completedFullCycle = false) {
+      state.isPlaying = false;
+      if (state.stepTimer) {
+        clearTimeout(state.stepTimer);
+        state.stepTimer = null;
+      }
+      clearSubTimers();
+      playheadBeamMat.opacity = 0;
+      clearAllSeatHighlights();
+
+      document.body.classList.remove('is-playing-rollcall');
+      labelPlatform.el.style.display = '';
+      const minimalHud = document.getElementById('playback-minimal-hud');
+      minimalHud.classList.add('is-hidden', 'opacity-0', '-translate-y-4', 'pointer-events-none');
+      minimalHud.classList.remove('opacity-100', 'translate-y-0', 'pointer-events-auto');
+
+      const meterStr = `${state.beatsPerBar}/4`;
+      document.getElementById('stat-beat').textContent = completedFullCycle ? '完成!' : meterStr;
+      if (!completedFullCycle) {
+        document.getElementById('beat-progress-bar').style.width = '0%';
+      }
+      const totalBeats = state.beatsPerBar * 2;
+      for (let b = 0; b < totalBeats; b++) {
+        const cell = document.getElementById(`score-beat-${b}`);
+        if (cell) cell.classList.remove('playing');
+      }
+      document.getElementById('play-icon').textContent = '▶';
+      document.getElementById('play-text').textContent = '1. 重新點名 (自動隱藏工具列)';
+      document.getElementById('btn-play').classList.replace('bg-rose-600', 'bg-[#18181b]');
+      document.getElementById('btn-play').classList.replace('hover:bg-rose-700', 'hover:bg-stone-800');
+
+      if (completedFullCycle) {
+        document.getElementById('btn-depart').classList.add('depart-ready');
+        showBanner(
+          '🎉',
+          '點名完成！全員到齊！',
+          '準備好了嗎？點擊【🚂 列車出發】讓火車鳴笛開動！',
+          '🚂 列車出發！'
+        );
+      }
+    }
+
+    function setTimeSignature(newBeatsPerBar) {
+      if (state.beatsPerBar === newBeatsPerBar) return;
+      stopRollCall(false);
+      hideBanner();
+      if (state.trainPhase !== 'station') {
+        state.trainX = 0;
+        trainGroup.position.x = 0;
+        state.trainPhase = 'station';
+      }
+
+      for (let c = 0; c < 2; c++) {
+        for (let r = 0; r < state.beatsPerBar; r++) {
+          clearRow(c, r);
+        }
+      }
+
+      state.beatsPerBar = newBeatsPerBar;
+      initCarriageRowsState(newBeatsPerBar);
+      buildCarriages();
+      updateCarriageWorldLabels();
+
+      const btn44 = document.getElementById('btn-meter-44');
+      const btn34 = document.getElementById('btn-meter-34');
+      const meterStr = `${newBeatsPerBar}/4`;
+      if (newBeatsPerBar === 4) {
+        btn44.className = 'py-1 px-2 rounded-lg bg-stone-900 text-white font-black text-[11px] shadow-sm transition cursor-pointer flex items-center justify-center gap-1';
+        btn34.className = 'py-1 px-2 rounded-lg text-stone-700 hover:text-stone-900 font-black text-[11px] transition cursor-pointer flex items-center justify-center gap-1';
+      } else {
+        btn34.className = 'py-1 px-2 rounded-lg bg-stone-900 text-white font-black text-[11px] shadow-sm transition cursor-pointer flex items-center justify-center gap-1';
+        btn44.className = 'py-1 px-2 rounded-lg text-stone-700 hover:text-stone-900 font-black text-[11px] transition cursor-pointer flex items-center justify-center gap-1';
+      }
+
+      document.getElementById('meter-badge').textContent = `每節 ${newBeatsPerBar} 排 (${newBeatsPerBar}拍)`;
+      document.getElementById('status-label').textContent = `${meterStr} ROLL CALL`;
+      document.getElementById('stat-beat').textContent = meterStr;
+      document.getElementById('play-meter-label').textContent = meterStr;
+      document.getElementById('score-title-label').textContent = `${meterStr} 點名譜`;
+
+      updateScoreAndStats();
+      playPopSound(newBeatsPerBar === 3 ? 620 : 480);
+    }
+
+    function departTrain() {
+      ensureAudio();
+      if (state.isPlaying) stopRollCall(false);
+
+      if (state.trainPhase === 'departed') {
+        arriveTrainAtStation();
+        return;
+      }
+      if (state.trainPhase !== 'station') return;
+
+      hideBanner();
+      document.getElementById('btn-depart').classList.remove('depart-ready');
+      state.trainPhase = 'departing';
+      state.trainVelocity = 0.02;
+      state.chugTimer = 0;
+
+      // Switch railway signal light to red as train departs
+      if (signalGreenMat && signalRedMat) {
+        signalGreenMat.emissiveIntensity = 0.12;
+        signalRedMat.emissiveIntensity = 1.25;
+      }
+
+      // Save user's pre-departure camera view & start 3-stage departure camera choreography
+      if (!state.departCamActive) {
+        state.savedCamPos = camTransition ? camTransition.endPos.clone() : camera.position.clone();
+        state.savedCamTarget = camTransition ? camTransition.endLook.clone() : controls.target.clone();
+      }
+      camTransition = null;
+      controls.enableDamping = false;
+      state.departCamTimer = 0;
+      state.departCamActive = true;
+
+      playTrainWhistle();
+
+      document.getElementById('depart-icon').textContent = '💨';
+      document.getElementById('depart-text').textContent = '列車加速駛離中...';
+      document.getElementById('status-label').textContent = 'TRAIN DEPARTING · 列車出發中！';
+
+      allPassengerRoots.forEach((p, idx) => {
+        if (p.userData.seatedInfo) {
+          p.userData.jumpY = 0.45;
+          p.userData.wobbleAmp = 1.0;
+          p.userData.mouthOpen = 1.0;
+          setTimeout(() => {
+            if (state.trainPhase === 'departing') {
+              playPassengerSound(p.userData.type, p.userData.flavorIndex, 0.28);
+              spawnNoteBurst(getPassengerWorldPosition(p), p.userData.flavorIndex, 3);
+            }
+          }, 350 + idx * 140);
+        }
+      });
+    }
+
+    function arriveTrainAtStation() {
+      ensureAudio();
+      hideBanner();
+
+      if (state.departCamActive && state.savedCamPos && state.savedCamTarget) {
+        flyCameraTo(state.savedCamPos, state.savedCamTarget, state.activeCamPreset, 0.45);
+      }
+
+      if (signalGreenMat && signalRedMat) {
+        signalGreenMat.emissiveIntensity = 1.15;
+        signalRedMat.emissiveIntensity = 0.15;
+      }
+
+      for (let c = 0; c < 2; c++) {
+        for (let r = 0; r < state.beatsPerBar; r++) {
+          clearRow(c, r);
+        }
+      }
+      updateScoreAndStats();
+      randomizePlatformSpawnersPitches();
+
+      state.trainPhase = 'arriving';
+      state.trainX = 24.0;
+      trainGroup.position.x = state.trainX;
+
+      playTrainWhistle();
+      document.getElementById('depart-icon').textContent = '🔔';
+      document.getElementById('depart-text').textContent = '空車進站中...';
+      document.getElementById('status-label').textContent = 'TRAIN ARRIVING · 空車進站中';
+    }
+
+    /********************************************************************
+     * 9. UI CONTROLS & PRESET GROOVE GENERATOR
+     ********************************************************************/
+    document.getElementById('btn-meter-44').addEventListener('click', () => setTimeSignature(4));
+    document.getElementById('btn-meter-34').addEventListener('click', () => setTimeSignature(3));
+    document.getElementById('btn-hud-stop').addEventListener('click', () => stopRollCall(false));
+
+    document.querySelectorAll('.flavor-orb').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = parseInt(btn.dataset.flavor, 10);
+        setFlavorSelectionUI(idx);
+        playPassengerSound(state.selectedPassengerType, idx, 0.3);
+      });
+    });
+
+    function setPassengerTypeUI(type) {
+      state.selectedPassengerType = type;
+      const buttons = {
+        adult: document.getElementById('select-adult'),
+        child: document.getElementById('select-child'),
+        sixteenth: document.getElementById('select-sixteenth')
+      };
+      Object.keys(buttons).forEach(key => {
+        const btn = buttons[key];
+        const iconBox = btn.querySelector('div:first-child');
+        if (key === type) {
+          btn.className = 'group flex flex-col items-center p-1.5 rounded-xl border-2 border-stone-900 bg-stone-900 text-white transition text-center cursor-pointer';
+          if (iconBox) iconBox.className = 'w-6 h-6 rounded-lg bg-white/20 flex items-center justify-center text-sm font-black mb-0.5 px-0.5';
+        } else {
+          btn.className = 'group flex flex-col items-center p-1.5 rounded-xl border-2 border-stone-300 bg-white hover:bg-stone-50 text-stone-800 transition text-center cursor-pointer';
+          if (iconBox) iconBox.className = 'w-6 h-6 rounded-lg bg-stone-200 flex items-center justify-center text-sm font-black text-stone-900 mb-0.5 px-0.5';
+        }
+      });
+    }
+
+    document.getElementById('select-adult').addEventListener('click', () => {
+      setPassengerTypeUI('adult');
+      playPassengerSound('adult', state.selectedFlavor, 0.35);
+    });
+    document.getElementById('select-child').addEventListener('click', () => {
+      setPassengerTypeUI('child');
+      playPassengerSound('child', state.selectedFlavor, 0.22);
+    });
+    document.getElementById('select-sixteenth').addEventListener('click', () => {
+      setPassengerTypeUI('sixteenth');
+      for (let k = 0; k < 4; k++) {
+        setTimeout(() => playPassengerSound('sixteenth', state.selectedFlavor, 0.11, k), k * 85);
+      }
+    });
+
+    document.getElementById('slider-wobble').addEventListener('input', (e) => {
+      const val = parseInt(e.target.value, 10);
+      state.wobbleFactor = val / 100;
+      document.getElementById('wobble-val').textContent = `${val}%`;
+    });
+
+    document.getElementById('slider-tempo').addEventListener('input', (e) => {
+      const val = parseInt(e.target.value, 10);
+      state.bpm = val;
+      document.getElementById('tempo-val').textContent = `${val}`;
+    });
+
+    document.getElementById('btn-toggle-ui').addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isClean = document.body.classList.toggle('clean-3d-mode');
+      document.getElementById('toggle-ui-text').textContent = isClean ? '展開面板' : '收合面板';
+      playPopSound(isClean ? 380 : 540);
+    });
+
+    document.getElementById('btn-resize-score').addEventListener('click', (e) => {
+      state.scoreExpanded = !state.scoreExpanded;
+      const wrapper = document.getElementById('score-dock-wrapper');
+      if (state.scoreExpanded) {
+        wrapper.classList.replace('max-w-[820px]', 'max-w-[1000px]');
+        e.currentTarget.textContent = '🔽 縮小樂譜';
+      } else {
+        wrapper.classList.replace('max-w-[1000px]', 'max-w-[820px]');
+        e.currentTarget.textContent = '🔍 放大樂譜';
+      }
+      updateScoreAndStats();
+    });
+
+    document.getElementById('btn-play').addEventListener('click', () => {
+      if (state.isPlaying) {
+        stopRollCall(false);
+      } else {
+        startRollCall();
+      }
+    });
+
+    document.getElementById('btn-depart').addEventListener('click', () => {
+      departTrain();
+    });
+
+    bannerActionBtn.addEventListener('click', () => {
+      if (state.trainPhase === 'departed') {
+        arriveTrainAtStation();
+      } else {
+        departTrain();
+      }
+    });
+
+    document.getElementById('btn-clear').addEventListener('click', () => {
+      stopRollCall(false);
+      hideBanner();
+      if (state.trainPhase !== 'station') arriveTrainAtStation();
+      for (let c = 0; c < 2; c++) {
+        for (let r = 0; r < state.beatsPerBar; r++) {
+          clearRow(c, r);
+        }
+      }
+      randomizePlatformSpawnersPitches();
+      updateScoreAndStats();
+      playPopSound(220);
+    });
+
+    function loadSampleRhythm(isRandom = false) {
+      if (state.trainPhase !== 'station') arriveTrainAtStation();
+      hideBanner();
+      for (let c = 0; c < 2; c++) {
+        for (let r = 0; r < state.beatsPerBar; r++) {
+          clearRow(c, r);
+        }
+      }
+
+      if (!isRandom) {
+        if (state.beatsPerBar === 4) {
+          placeAdultInRow(0, 0, 0);
+          placeChildInSeat(0, 1, 0, 1);
+          placeChildInSeat(0, 1, 1, 2);
+          placeSixteenthInRow(0, 2, 3);
+          placeAdultInRow(0, 3, 4);
+
+          placeChildInSeat(1, 0, 0, 0);
+          placeChildInSeat(1, 0, 1, 1);
+          placeSixteenthInRow(1, 1, 2);
+          placeChildInSeat(1, 2, 0, 3);
+          placeChildInSeat(1, 2, 1, 4);
+          placeAdultInRow(1, 3, 0);
+        } else {
+          placeAdultInRow(0, 0, 0);
+          placeChildInSeat(0, 1, 0, 2);
+          placeChildInSeat(0, 1, 1, 2);
+          placeSixteenthInRow(0, 2, 3);
+
+          placeAdultInRow(1, 0, 4);
+          placeSixteenthInRow(1, 1, 1);
+          placeAdultInRow(1, 2, 0);
+        }
+      } else {
+        for (let c = 0; c < 2; c++) {
+          for (let r = 0; r < state.beatsPerBar; r++) {
+            const roll = Math.random();
+            if (roll < 0.34) {
+              placeAdultInRow(c, r, Math.floor(Math.random() * FLAVORS.length));
+            } else if (roll < 0.64) {
+              placeSixteenthInRow(c, r, Math.floor(Math.random() * FLAVORS.length));
+            } else if (roll < 0.92) {
+              placeChildInSeat(c, r, 0, Math.floor(Math.random() * FLAVORS.length));
+              if (Math.random() < 0.8) {
+                placeChildInSeat(c, r, 1, Math.floor(Math.random() * FLAVORS.length));
+              }
+            }
+          }
+        }
+        randomizePlatformSpawnersPitches();
+        playPopSound(520);
+      }
+      updateScoreAndStats();
+    }
+
+    document.getElementById('btn-random').addEventListener('click', () => {
+      loadSampleRhythm(true);
+    });
+
+    document.getElementById('btn-reset-cam').addEventListener('click', (e) => {
+      e.stopPropagation();
+      flyCameraTo(DEFAULT_CAM_POS, DEFAULT_CAM_TARGET, 'reset', 0.55);
+      playPopSound(460);
+    });
+
+    document.getElementById('btn-top-cam').addEventListener('click', (e) => {
+      e.stopPropagation();
+      flyCameraTo(TOP_CAM_POS, TOP_CAM_TARGET, 'top', 0.55);
+      playPopSound(580);
+    });
+
+    /********************************************************************
+     * 10. MAIN ANIMATION LOOP (3-Stage Departure Cam, Scenery & Jelly Wobble)
+     ********************************************************************/
+    const clock = new THREE.Clock();
+    const _viewVec = new THREE.Vector3();
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const dt = Math.min(clock.getDelta(), 0.05);
+      const elapsed = clock.getElapsedTime();
+
+      // 0. Camera Update: 3-Stage Departure Choreography vs Preset Flight vs OrbitControls
+      if (state.departCamActive && state.savedCamPos && state.savedCamTarget) {
+        state.departCamTimer += dt;
+        const t = state.departCamTimer;
+
+        const releaseWeight = 1.0 - smootherstep(1.8, 2.55, t);
+        const stage1In = smootherstep(0.0, 0.3, t);
+        const pushRatio = 0.026 * stage1In * releaseWeight;
+        const locoGazeLeadX = -0.35 * stage1In * releaseWeight;
+        const initialCamLeadX = -0.12 * stage1In * releaseWeight;
+
+        const stage2Pan = smootherstep(0.26, 1.8, t) * releaseWeight;
+        const panTrackX = -1.55 * stage2Pan;
+
+        _viewVec.subVectors(state.savedCamTarget, state.savedCamPos);
+
+        camera.position.set(
+          state.savedCamPos.x + _viewVec.x * pushRatio + initialCamLeadX + panTrackX,
+          state.savedCamPos.y + _viewVec.y * pushRatio,
+          state.savedCamPos.z + _viewVec.z * pushRatio
+        );
+
+        controls.target.set(
+          state.savedCamTarget.x + locoGazeLeadX + panTrackX,
+          state.savedCamTarget.y,
+          state.savedCamTarget.z
+        );
+        controls.update();
+
+        if (t >= 2.55) {
+          camera.position.copy(state.savedCamPos);
+          controls.target.copy(state.savedCamTarget);
+          state.departCamActive = false;
+          state.savedCamPos = null;
+          state.savedCamTarget = null;
+          controls.enableDamping = true;
+          controls.update();
+        }
+      } else if (camTransition) {
+        camTransition.progress += dt / camTransition.duration;
+        const t = Math.min(1, camTransition.progress);
+        const ease = 1 - Math.pow(1 - t, 3);
+        camera.position.lerpVectors(camTransition.startPos, camTransition.endPos, ease);
+        controls.target.lerpVectors(camTransition.startLook, camTransition.endLook, ease);
+        controls.update();
+        if (t >= 1) {
+          camTransition = null;
+          controls.enableDamping = true;
+        }
+      } else {
+        controls.update();
+      }
+
+      // 0b. Animate Back-Side Scenery (Trees breeze sway, beat bounce, lamps & station clock)
+      const lampPulse = 0.72 + Math.sin(elapsed * (state.bpm / 60) * Math.PI * 2) * 0.25;
+      backsideLampBulbs.forEach(mat => {
+        mat.emissiveIntensity = lampPulse;
+      });
+      if (clockMinuteHand) {
+        clockMinuteHand.rotation.z = -elapsed * 0.35;
+      }
+
+      backsideTrees.forEach(tr => {
+        tr.group.rotation.z = Math.sin(elapsed * 1.7 + tr.phase) * 0.025;
+        if (tr.bounceAmp > 0.002) {
+          const s = tr.baseScale * (1 + tr.bounceAmp);
+          tr.group.scale.set(tr.baseScale * (1 - tr.bounceAmp * 0.35), s, tr.baseScale * (1 - tr.bounceAmp * 0.35));
+          tr.bounceAmp *= Math.pow(0.05, dt);
+        } else {
+          tr.bounceAmp = 0;
+          tr.group.scale.setScalar(tr.baseScale);
+        }
+
+        if (state.trainPhase === 'departing') {
+          tr.group.position.x += state.trainVelocity * dt * 0.16;
+          if (tr.group.position.x > 14.5) tr.group.position.x = -14.5;
+        } else if (state.trainPhase === 'station') {
+          tr.group.position.x = THREE.MathUtils.lerp(tr.group.position.x, tr.baseX, dt * 3);
+        }
+      });
+
+      const allWheels = [...locoWheelMeshes, ...carriageWheelMeshes];
+
+      // 1. Handle Train Phase ('station' | 'departing' | 'departed' | 'arriving')
+      if (state.trainPhase === 'departing') {
+        state.trainVelocity += dt * 7.8;
+        state.trainX -= state.trainVelocity * dt;
+        trainGroup.position.x = state.trainX;
+
+        allWheels.forEach(w => {
+          w.rotation.z += state.trainVelocity * dt * 2.8;
+        });
+
+        locoGroup.position.y = Math.abs(Math.sin(elapsed * 18)) * 0.055;
+        state.chugTimer += dt * (1.2 + state.trainVelocity * 0.35);
+        if (state.chugTimer >= 0.26) {
+          state.chugTimer = 0;
+          spawnSteamPuff(Math.floor(Math.random() * FLAVORS.length), 1.25);
+          if (state.trainX > -22) {
+            playSteamChugSound(Math.min(1.0, 0.4 + state.trainVelocity * 0.05));
+          }
+        }
+
+        allPassengerRoots.forEach((p, idx) => {
+          if (p.userData.seatedInfo) {
+            p.userData.jumpY = Math.abs(Math.sin(elapsed * 10 + idx)) * 0.22;
+            p.userData.wobbleAmp = Math.max(p.userData.wobbleAmp, 0.35);
+          }
+        });
+
+        if (state.trainX < -25) {
+          state.trainPhase = 'departed';
+          state.trainVelocity = 0;
+          document.getElementById('depart-icon').textContent = '🔔';
+          document.getElementById('depart-text').textContent = '迎接下一班列車 (列車進站)';
+          document.getElementById('status-label').textContent = 'TRAIN DEPARTED · 列車已出發！';
+          showBanner(
+            '🚂',
+            '列車已順利載著乘客出發！',
+            `想再練習新的 ${state.beatsPerBar}/4 拍節奏嗎？點擊下方按鈕讓列車進站！`,
+            '🔔 迎接下一班列車 (進站)'
+          );
+        }
+      } else if (state.trainPhase === 'arriving') {
+        const distToStation = state.trainX - 0;
+        const speed = Math.max(1.2, distToStation * 3.2);
+        state.trainX -= speed * dt;
+
+        if (state.trainX <= 0.02) {
+          state.trainX = 0;
+          trainGroup.position.x = 0;
+          state.trainPhase = 'station';
+          locoGroup.position.y = 0;
+          playPopSound(520);
+          spawnSteamPuff(0, 1.3);
+          pulseBacksideTrees(0.12);
+          document.getElementById('depart-icon').textContent = '🚂';
+          document.getElementById('depart-text').textContent = '2. 點完名・列車出發 (Depart)';
+          document.getElementById('status-label').textContent = `RHYTHM PHYSICS · ${state.beatsPerBar}/4 ROLL CALL`;
+        } else {
+          trainGroup.position.x = state.trainX;
+          allWheels.forEach(w => {
+            w.rotation.z += speed * dt * 2.5;
+          });
+          locoGroup.position.y = Math.abs(Math.sin(elapsed * 14)) * 0.035;
+        }
+      } else if (state.isPlaying) {
+        allWheels.forEach(w => {
+          w.rotation.z += dt * (state.bpm / 32);
+        });
+        locoGroup.position.y = Math.abs(Math.sin(elapsed * (state.bpm / 60) * Math.PI * 2)) * 0.035;
+      } else {
+        locoGroup.position.y = THREE.MathUtils.lerp(locoGroup.position.y, 0, 0.15);
+      }
+
+      if (locoWheelMeshes.length > 0) {
+        const wheelAngle = locoWheelMeshes[0].rotation.z;
+        locoConnectingRods.forEach(rod => {
+          rod.mesh.position.x = rod.baseX + Math.cos(wheelAngle) * 0.12;
+          rod.mesh.position.y = rod.baseY + Math.sin(wheelAngle) * 0.12;
+        });
+      }
+
+      // 2. Animate Gummy Passengers (Blinking, Singing Mouth, Wobble & 16th-Note Quadruplets)
+      allPassengerRoots.forEach(p => {
+        const u = p.userData;
+
+        if (u.eyesGroup) {
+          const blinkCycle = (elapsed + u.blinkOffset) % 4.2;
+          u.eyesGroup.scale.y = (blinkCycle > 4.04) ? 0.1 : 1.0;
+        }
+
+        if (u.mouthMesh) {
+          if (u.mouthOpen > 0.01) {
+            u.mouthOpen = THREE.MathUtils.lerp(u.mouthOpen, 0, dt * 6.5);
+            const pitchScale = 1 + (u.flavorIndex || 0) * 0.08;
+            u.mouthMesh.scale.set(
+              0.55 + u.mouthOpen * 0.55,
+              0.35 + u.mouthOpen * 1.45 * pitchScale,
+              1.05 + u.mouthOpen * 0.35
+            );
+          } else {
+            u.mouthOpen = 0;
+            u.mouthMesh.scale.set(0.55, 0.35, 1.05);
+          }
+        }
+
+        if (p === draggedPassenger) {
+          u.bodyGroup.rotation.z = Math.sin(elapsed * 16) * 0.14 * state.wobbleFactor;
+          u.bodyGroup.scale.set(u.scaleXZ, u.scaleY, u.scaleXZ);
+          return;
+        }
+
+        if (state.trainPhase !== 'departing') {
+          if (u.jumpY > 0.001) {
+            u.jumpY = THREE.MathUtils.lerp(u.jumpY, 0, dt * 11);
+          } else {
+            u.jumpY = 0;
+          }
+        }
+        u.bodyGroup.position.y = u.jumpY;
+
+        if (u.wobbleAmp > 0.002) {
+          u.wobblePhase += dt * 24;
+          const wave = Math.sin(u.wobblePhase) * u.wobbleAmp;
+          const sy = 1 + wave * 0.38;
+          const sxz = 1 / Math.sqrt(Math.max(0.5, sy));
+          u.bodyGroup.scale.set(sxz, sy, sxz);
+          u.bodyGroup.rotation.z = Math.cos(u.wobblePhase * 0.8) * u.wobbleAmp * 0.22;
+
+          if (u.leftArm && u.rightArm) {
+            u.leftArm.rotation.z = -u.wobbleAmp * 0.75;
+            u.rightArm.rotation.z = u.wobbleAmp * 0.75;
+          }
+
+          u.wobbleAmp *= Math.pow(0.06, dt);
+        } else {
+          const breath = Math.sin(elapsed * 2.8 + u.wobblePhase) * 0.028 * state.wobbleFactor;
+          u.bodyGroup.scale.set(1 - breath * 0.5, 1 + breath, 1 - breath * 0.5);
+          u.bodyGroup.rotation.z = 0;
+        }
+
+        if (u.miniFigures) {
+          u.miniFigures.forEach((mf, idx) => {
+            const mu = mf.userData;
+            if (mu.eyesGroup) {
+              const bCycle = (elapsed + mu.blinkOffset) % 3.8;
+              mu.eyesGroup.scale.y = (bCycle > 3.65) ? 0.1 : 1.0;
+            }
+            if (mu.mouthMesh) {
+              if (mu.mouthOpen > 0.01) {
+                mu.mouthOpen = THREE.MathUtils.lerp(mu.mouthOpen, 0, dt * 9.5);
+                mu.mouthMesh.scale.set(
+                  0.55 + mu.mouthOpen * 0.6,
+                  0.35 + mu.mouthOpen * 1.55,
+                  1.0 + mu.mouthOpen * 0.35
+                );
+              } else {
+                mu.mouthOpen = 0;
+                mu.mouthMesh.scale.set(0.55, 0.35, 1.0);
+              }
+            }
+
+            if (mu.jumpY > 0.001) {
+              mu.jumpY = THREE.MathUtils.lerp(mu.jumpY, 0, dt * 14);
+            } else {
+              mu.jumpY = 0;
+            }
+            mf.position.y = mu.jumpY;
+
+            if (mu.wobbleAmp > 0.002) {
+              mu.wobblePhase += dt * 28;
+              const mWave = Math.sin(mu.wobblePhase) * mu.wobbleAmp;
+              const mSy = 1 + mWave * 0.42;
+              const mSxz = 1 / Math.sqrt(Math.max(0.5, mSy));
+              mf.scale.set(mSxz, mSy, mSxz);
+              mu.wobbleAmp *= Math.pow(0.04, dt);
+            } else {
+              const mBreath = Math.sin(elapsed * 3.5 + idx * 0.9) * 0.03 * state.wobbleFactor;
+              mf.scale.set(1 - mBreath * 0.5, 1 + mBreath, 1 - mBreath * 0.5);
+            }
+          });
+        }
+      });
+
+      // 3. Animate Steam Puffs
+      for (let i = steamParticles.length - 1; i >= 0; i--) {
+        const sp = steamParticles[i];
+        sp.mesh.position.y += sp.vy;
+        sp.mesh.position.x += sp.vx;
+        sp.scale += dt * 1.45;
+        sp.mesh.scale.setScalar(sp.scale);
+        sp.life -= dt * 0.85;
+        sp.mesh.material.opacity = Math.max(0, sp.life * 0.85);
+        if (sp.life <= 0) {
+          scene.remove(sp.mesh);
+          steamParticles.splice(i, 1);
+        }
+      }
+
+      // 3b. Animate Singing Star/Note Burst Particles
+      for (let i = noteBurstParticles.length - 1; i >= 0; i--) {
+        const np = noteBurstParticles[i];
+        np.mesh.position.x += np.vx;
+        np.mesh.position.y += np.vy;
+        np.mesh.position.z += np.vz;
+        np.mesh.rotation.y += np.rotSpeed;
+        np.mesh.rotation.x += np.rotSpeed * 0.8;
+        np.life -= dt * 1.65;
+        np.mesh.scale.setScalar(Math.max(0.01, np.life));
+        np.mesh.material.opacity = Math.max(0, np.life);
+        if (np.life <= 0) {
+          scene.remove(np.mesh);
+          noteBurstParticles.splice(i, 1);
+        }
+      }
+
+      // 3c. Animate 3D Sound Wave Ripple Rings
+      for (let i = soundRippleRings.length - 1; i >= 0; i--) {
+        const rp = soundRippleRings[i];
+        rp.scale += dt * 2.8;
+        rp.life -= dt * 1.85;
+        rp.mesh.scale.setScalar(rp.scale);
+        rp.mesh.material.opacity = Math.max(0, rp.life * 0.75);
+        if (rp.life <= 0) {
+          scene.remove(rp.mesh);
+          soundRippleRings.splice(i, 1);
+        }
+      }
+
+      // 4. Project Persistent 3D World Labels
+      persistentWorldLabels.forEach(item => {
+        const worldPos = item.localPos.clone();
+        if (item.followTrain) {
+          worldPos.x += trainGroup.position.x;
+        }
+        const v = worldPos.project(camera);
+        if (v.z > 1 || worldPos.x < -14 || worldPos.x > 14) {
+          item.el.style.opacity = '0';
+        } else {
+          const x = (v.x * 0.5 + 0.5) * window.innerWidth;
+          const y = (-(v.y * 0.5) + 0.5) * window.innerHeight;
+          item.el.style.left = `${x}px`;
+          item.el.style.top = `${y}px`;
+          item.el.style.opacity = '1';
+        }
+      });
+
+      renderer.render(scene, camera);
+    }
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    function startApp() {
+      if (window.__rhythmTrainInitialized) return;
+      window.__rhythmTrainInitialized = true;
+      updateScoreAndStats();
+      animate();
+    }
+
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+      startApp();
+    } else {
+      window.addEventListener('DOMContentLoaded', startApp);
+      window.addEventListener('load', startApp);
+    }
+  </script>
+</body>
+</html>
